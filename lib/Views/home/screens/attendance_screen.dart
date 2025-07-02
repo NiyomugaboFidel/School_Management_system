@@ -513,12 +513,26 @@ class _AttendanceScreenState extends State<AttendanceScreen>
             : AppColors.error;
     final timeString =
         '${log.markedAt.hour.toString().padLeft(2, '0')}:${log.markedAt.minute.toString().padLeft(2, '0')}';
+    // Find the student for this log
+    final student = students.firstWhere(
+      (s) => s.studentId == log.studentId,
+      orElse:
+          () => Student(
+            studentId: log.studentId,
+            regNumber: '',
+            fullName: 'Unknown',
+            classId: 0,
+            className: '',
+            levelName: '',
+            isActive: true,
+          ),
+    );
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
-      padding: const EdgeInsets.all(12),
+      padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: AppColors.cardBackground,
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(12),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withOpacity(0.03),
@@ -530,53 +544,84 @@ class _AttendanceScreenState extends State<AttendanceScreen>
       ),
       child: Row(
         children: [
-          Container(
-            padding: const EdgeInsets.all(6),
-            decoration: BoxDecoration(
-              color: color.withOpacity(0.1),
-              borderRadius: BorderRadius.circular(6),
-            ),
-            child: Icon(
-              log.status == AttendanceStatus.present
-                  ? Icons.check_circle
-                  : log.status == AttendanceStatus.late
-                  ? Icons.access_time
-                  : Icons.cancel,
-              color: color,
-              size: 16,
+          // Avatar
+          CircleAvatar(
+            radius: 22,
+            backgroundColor: color.withOpacity(0.15),
+            child: Text(
+              student.fullName.isNotEmpty
+                  ? student.fullName.split(' ').map((e) => e[0]).join('')
+                  : '?',
+              style: TextStyle(
+                color: color,
+                fontWeight: FontWeight.bold,
+                fontSize: 16,
+              ),
             ),
           ),
           const SizedBox(width: 12),
+          // Student info
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  // Show studentId or a placeholder, since AttendanceLog does not have studentName
-                  'Student ID:  0{log.studentId}',
+                  student.fullName,
                   style: const TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
+                    fontSize: 15,
+                    fontWeight: FontWeight.bold,
                     color: AppColors.textDark,
                   ),
                 ),
+                const SizedBox(height: 2),
+                Row(
+                  children: [
+                    Text(
+                      'ID: ${student.studentId}',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: AppColors.textLight,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                    if (student.className != null &&
+                        student.className!.isNotEmpty) ...[
+                      const SizedBox(width: 8),
+                      Text(
+                        student.className!,
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: AppColors.textLight,
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+                const SizedBox(height: 2),
                 Text(
-                  log.status.value,
+                  'Marked: $timeString',
                   style: TextStyle(
                     fontSize: 12,
-                    color: color,
-                    fontWeight: FontWeight.w500,
+                    color: AppColors.textLight.withOpacity(0.8),
                   ),
                 ),
               ],
             ),
           ),
-          Text(
-            timeString,
-            style: TextStyle(
-              fontSize: 12,
-              color: AppColors.textLight,
-              fontWeight: FontWeight.w500,
+          // Status
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            decoration: BoxDecoration(
+              color: color.withOpacity(0.13),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Text(
+              log.status.value,
+              style: TextStyle(
+                fontSize: 13,
+                color: color,
+                fontWeight: FontWeight.w700,
+              ),
             ),
           ),
         ],

@@ -89,13 +89,81 @@ class _RecentPaymentsTab extends StatelessWidget {
           separatorBuilder: (_, __) => const Divider(),
           itemBuilder: (context, i) {
             final p = payments[i];
+            // You may want to fetch the student by ID if you have a student list or cache
+            // For now, just show initials from studentId and a placeholder name
+            String initials =
+                p.studentId.toString().isNotEmpty
+                    ? p.studentId.toString().substring(0, 1).toUpperCase()
+                    : '?';
+            // If you have a student name, replace 'Unknown' with the actual name
+            String studentName = 'Unknown';
+            // Optionally, fetch student name from a cache or DB if available
             return ListTile(
-              leading: const Icon(Icons.payment, color: AppColors.success),
-              title: Text(p.amount.toStringAsFixed(2)),
-              subtitle: Text(
-                'Student: ${p.studentId} | Type: ${p.paymentType}',
+              leading: CircleAvatar(
+                backgroundColor: AppColors.success.withOpacity(0.15),
+                child: Text(
+                  initials,
+                  style: const TextStyle(
+                    color: AppColors.success,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
               ),
-              trailing: Text('${p.paymentDate.day}/${p.paymentDate.month}'),
+              title: Text(
+                'Frw ${p.amount.toStringAsFixed(2)}',
+                style: const TextStyle(fontWeight: FontWeight.bold),
+              ),
+              subtitle: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    studentName,
+                    style: const TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.textDark,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    'ID: ${p.studentId} | Type: ${p.paymentType}',
+                    style: const TextStyle(
+                      fontSize: 12,
+                      color: AppColors.textLight,
+                    ),
+                  ),
+                ],
+              ),
+              trailing: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text(
+                    '${p.paymentDate.day.toString().padLeft(2, '0')}/${p.paymentDate.month.toString().padLeft(2, '0')}',
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w600,
+                      fontSize: 13,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    '${p.paymentDate.hour.toString().padLeft(2, '0')}:${p.paymentDate.minute.toString().padLeft(2, '0')}',
+                    style: const TextStyle(
+                      fontSize: 11,
+                      color: AppColors.textLight,
+                    ),
+                  ),
+                ],
+              ),
+              contentPadding: const EdgeInsets.symmetric(
+                vertical: 6,
+                horizontal: 16,
+              ),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+                side: BorderSide(color: AppColors.success.withOpacity(0.08)),
+              ),
+              tileColor: Colors.white,
+              minVerticalPadding: 12,
             );
           },
         );

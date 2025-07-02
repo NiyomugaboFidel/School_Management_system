@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:sqlite_crud_app/Views/auth/screens/auth.dart';
@@ -8,9 +9,17 @@ import 'package:sqlite_crud_app/Views/auth/screens/signup.dart';
 import 'package:sqlite_crud_app/constants/app_colors.dart';
 import 'package:sqlite_crud_app/navigation_menu.dart';
 import 'package:sqlite_crud_app/utils/user_session.dart';
+import 'package:sqlite_crud_app/permission_service.dart';
 
-void main() {
+Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+
+  if (!kIsWeb) {
+    await requestAllPermissions();
+  }
+
+  // System UI overlay settings.
   SystemChrome.setSystemUIOverlayStyle(
     const SystemUiOverlayStyle(
       statusBarColor: Colors.transparent,
@@ -33,14 +42,6 @@ void main() {
   );
 }
 
-
-
-
-
-
-
-
-
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
 
@@ -57,7 +58,7 @@ class MyApp extends StatelessWidget {
         '/home': (context) => const NavigationMenu(),
       },
       title: 'XTAP',
-theme: ThemeData(
+      theme: ThemeData(
         primarySwatch: MaterialColor(0xFF0D7E0D, {
           50: Color(0xFFE8F5E8),
           100: Color(0xFFC5E6C5),

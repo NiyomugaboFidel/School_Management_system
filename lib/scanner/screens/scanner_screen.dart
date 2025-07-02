@@ -4,8 +4,9 @@ import 'package:sqlite_crud_app/constants/app_colors.dart';
 import 'package:sqlite_crud_app/models/scan_result.dart';
 import 'package:sqlite_crud_app/Components/br_code.dart';
 import 'package:sqlite_crud_app/Components/nfc_widget.dart';
+import 'package:sqlite_crud_app/scanner/screens/attendance_scanner_widget.dart';
 
-enum ScannerType { nfc, qrCode, barcode, none, camera }
+enum ScannerType { nfc, qrCode, barcode, none, camera, attendance }
 
 class ScannerMainScreen extends StatefulWidget {
   const ScannerMainScreen({super.key});
@@ -211,6 +212,18 @@ class _ScannerMainScreenState extends State<ScannerMainScreen>
             color: AppColors.info,
             onTap: () => _selectScanner(ScannerType.camera),
           ),
+          
+          const SizedBox(height: 16),
+          
+          // Attendance Scanner Button
+          _buildScannerButton(
+            title: 'Attendance Scanner',
+            subtitle: 'Mark attendance via NFC or barcode',
+            icon: Icons.how_to_reg,
+            color: AppColors.success,
+            onTap: () => _selectScanner(ScannerType.attendance),
+          ),
+          const SizedBox(height: 16),
         ],
       ),
     );
@@ -331,7 +344,11 @@ class _ScannerMainScreenState extends State<ScannerMainScreen>
               if (_selectedScanner == ScannerType.nfc)
                 NfcScannerWidget(onScanResult: _handleScanResult)
               else if (_selectedScanner == ScannerType.camera)
-                CameraScannerWidget(onScanResult: _handleScanResult),
+                CameraScannerWidget(onScanResult: _handleScanResult)
+              else if (_selectedScanner == ScannerType.attendance)
+                AttendanceScannerWidget(
+                  currentUserName: 'Admin', // TODO: Replace with actual user
+                ),
             ],
           ),
         ),
@@ -477,8 +494,7 @@ class _ScannerMainScreenState extends State<ScannerMainScreen>
                 ],
               ),
             ),
-          ),
-        );
+          ));
       },
     );
   }

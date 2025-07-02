@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:sqlite_crud_app/constants/app_colors.dart';
 import 'package:sqlite_crud_app/SQLite/database_helper_full.dart';
-import 'package:sqlite_crud_app/models/student.dart';
 import 'package:barcode_widget/barcode_widget.dart' as barcode_widget;
 import 'package:flutter/services.dart';
 import 'package:path_provider/path_provider.dart';
@@ -11,7 +10,11 @@ import 'dart:ui' as ui;
 import 'package:flutter/rendering.dart';
 import 'package:permission_handler/permission_handler.dart'
     as permission_handler;
+
+import 'web_download_helper.dart'
+    if (dart.library.html) 'web_download_helper_web.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:sqlite_crud_app/services/nfc_service.dart';
 
 class AddStudentCardScreen extends StatefulWidget {
   const AddStudentCardScreen({Key? key}) : super(key: key);
@@ -26,12 +29,17 @@ class _AddStudentCardScreenState extends State<AddStudentCardScreen>
   final TextEditingController _nameController = TextEditingController();
   final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
   final GlobalKey _barcodeKey = GlobalKey();
+  final GlobalKey _downloadBarcodeKey =
+      GlobalKey(); // New key for download-only barcode
 
   String? barcodeData;
+  bool isWritingNfc = false;
   bool isGeneratingBarcode = false;
   bool isDownloadingBarcode = false;
+  String? nfcStatus;
   String? errorMessage;
   bool showBarcodeCard = false;
+  bool nfcAvailable = false;
 
   late AnimationController _animationController;
   late AnimationController _pulseController;
@@ -44,6 +52,7 @@ class _AddStudentCardScreenState extends State<AddStudentCardScreen>
   void initState() {
     super.initState();
     _setupAnimations();
+    _checkNfcAvailability();
   }
 
   void _setupAnimations() {
@@ -86,6 +95,11 @@ class _AddStudentCardScreenState extends State<AddStudentCardScreen>
     );
 
     _pulseController.repeat(reverse: true);
+  }
+
+  Future<void> _checkNfcAvailability() async {
+    nfcAvailable = await NFCService.instance.isAvailable();
+    setState(() {});
   }
 
   @override
@@ -165,6 +179,62 @@ class _AddStudentCardScreenState extends State<AddStudentCardScreen>
     }
   }
 
+  Future<void> _writeNfc() async {
+    if (barcodeData == null) return;
+    if (kIsWeb) {
+      setState(() {
+        errorMessage = 'NFC writing is not supported on web browsers';
+      });
+      return;
+    }
+    if (!nfcAvailable) {
+      setState(() {
+        errorMessage = 'NFC is not available on this device';
+      });
+      return;
+    }
+    setState(() {
+      isWritingNfc = true;
+      nfcStatus = null;
+      errorMessage = null;
+    });
+    try {
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => _buildNfcProgressDialog(),
+      );
+      // Use NFCService's writeJsonToTag for writing
+      final studentData = {
+        'studentId': barcodeData,
+        'studentName': _nameController.text.trim(),
+        'generatedAt': DateTime.now().toIso8601String(),
+        'type': 'student_card',
+      };
+      final success = await NFCService.instance.writeJsonToTag(studentData);
+      Navigator.of(context).pop();
+      setState(() {
+        nfcStatus = success
+            ? 'NFC card written successfully!\nStudent ID: $barcodeData'
+            : 'NFC write failed.';
+      });
+      HapticFeedback.heavyImpact();
+      if (success) _showSuccessOverlay();
+    } catch (e) {
+      Navigator.of(context).pop();
+      await NFCService.instance.finish(iosErrorMessage: e.toString());
+      setState(() {
+        nfcStatus = 'NFC write failed: ${e.toString()}';
+        errorMessage = e.toString();
+      });
+      HapticFeedback.heavyImpact();
+    } finally {
+      setState(() {
+        isWritingNfc = false;
+      });
+    }
+  }
+
   // Build clean barcode widget for download only
   Widget _buildDownloadBarcodeWidget() {
     return Container(
@@ -194,11 +264,35 @@ class _AddStudentCardScreenState extends State<AddStudentCardScreen>
     });
 
     try {
-      // Capture the barcode widget as image
-      final RenderRepaintBoundary boundary =
-          _barcodeKey.currentContext!.findRenderObject()
-              as RenderRepaintBoundary;
+      // Create an off-screen widget to capture the clean barcode
+      final downloadWidget = RepaintBoundary(
+        key: _downloadBarcodeKey,
+        child: _buildDownloadBarcodeWidget(),
+      );
 
+      // Build the widget in memory
+      final RenderRepaintBoundary boundary = RenderRepaintBoundary();
+      final element = downloadWidget.createElement();
+      element.mount(null, null);
+
+      // Create a render object tree
+      final RenderView renderView = RenderView(
+        view: WidgetsBinding.instance.platformDispatcher.implicitView!,
+        configuration: const ViewConfiguration(
+          devicePixelRatio: 3.0, // High DPI for quality
+        ),
+      );
+
+      final RenderPositionedBox renderPositionedBox = RenderPositionedBox(
+        alignment: Alignment.center,
+        child: boundary,
+      );
+
+      renderView.child = renderPositionedBox;
+      boundary.child = downloadWidget.createRenderObject(element);
+
+      // Layout and paint
+      renderView.prepareInitialFrame();
       final ui.Image image = await boundary.toImage(pixelRatio: 3.0);
       final ByteData? byteData = await image.toByteData(
         format: ui.ImageByteFormat.png,
@@ -209,27 +303,121 @@ class _AddStudentCardScreenState extends State<AddStudentCardScreen>
       }
 
       final Uint8List pngBytes = byteData.buffer.asUint8List();
-      final timestamp = DateTime.now().millisecondsSinceEpoch;
-      final fileName = 'student_barcode_${barcodeData}_$timestamp.png';
 
-      // Always use mobile download logic for all platforms
-      await _downloadForMobile(pngBytes, fileName);
+      final now = DateTime.now();
+      final formattedDate =
+          '${now.day.toString().padLeft(2, '0')}-${now.month.toString().padLeft(2, '0')}-${now.year}';
+      final fileName =
+          '${_nameController.text.toUpperCase()}_${barcodeData}_$formattedDate.png';
+
+      if (kIsWeb) {
+        await _downloadForWeb(pngBytes, fileName);
+      } else {
+        await _downloadForMobile(pngBytes, fileName);
+      }
 
       HapticFeedback.lightImpact();
     } catch (e) {
-      setState(() {
-        errorMessage = 'Failed to download barcode: ${e.toString()}';
-      });
-      HapticFeedback.heavyImpact();
+      // Fallback: Use the visible barcode widget if the off-screen method fails
+      try {
+        final RenderRepaintBoundary boundary =
+            _barcodeKey.currentContext!.findRenderObject()
+                as RenderRepaintBoundary;
 
-      // Show error dialog
-      if (mounted) {
-        _showErrorDialog('Download Failed', e.toString());
+        final ui.Image image = await boundary.toImage(
+          pixelRatio: 4.0,
+        ); // Higher quality
+        final ByteData? byteData = await image.toByteData(
+          format: ui.ImageByteFormat.png,
+        );
+
+        if (byteData == null) {
+          throw Exception('Failed to generate image data');
+        }
+
+        final Uint8List pngBytes = byteData.buffer.asUint8List();
+        final now = DateTime.now();
+        final formattedDate =
+            '${now.day.toString().padLeft(2, '0')}-${now.month.toString().padLeft(2, '0')}-${now.year}';
+        final fileName =
+            '${_nameController.text.toUpperCase()}_${barcodeData}_$formattedDate.png';
+
+        if (kIsWeb) {
+          await _downloadForWeb(pngBytes, fileName);
+        } else {
+          await _downloadForMobile(pngBytes, fileName);
+        }
+
+        HapticFeedback.lightImpact();
+      } catch (fallbackError) {
+        setState(() {
+          errorMessage =
+              'Failed to download barcode: ${fallbackError.toString()}';
+        });
+        HapticFeedback.heavyImpact();
+
+        if (mounted) {
+          _showErrorDialog('Download Failed', fallbackError.toString());
+        }
       }
     } finally {
       setState(() {
         isDownloadingBarcode = false;
       });
+    }
+  }
+
+  Future<void> _downloadForWeb(Uint8List pngBytes, String fileName) async {
+    try {
+      if (!kIsWeb) {
+        throw Exception('Web download called on non-web platform');
+      }
+      await downloadImageWeb(pngBytes, fileName);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                const Icon(Icons.check_circle, color: Colors.white, size: 24),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Text(
+                        'Student Card Downloaded Successfully!',
+                        style: TextStyle(
+                          fontWeight: FontWeight.w600,
+                          fontSize: 16,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        fileName,
+                        style: const TextStyle(
+                          fontSize: 12,
+                          color: Colors.white70,
+                        ),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            backgroundColor: AppColors.success,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+            duration: const Duration(seconds: 4),
+            margin: const EdgeInsets.all(16),
+          ),
+        );
+      }
+    } catch (e) {
+      throw Exception('Web download failed: $e');
     }
   }
 
@@ -511,7 +699,7 @@ class _AddStudentCardScreenState extends State<AddStudentCardScreen>
               onPressed: () {
                 Navigator.of(context).pop();
                 setState(() {
-                  isGeneratingBarcode = false;
+                  isWritingNfc = false;
                 });
               },
               child: const Text('Cancel'),
@@ -528,6 +716,7 @@ class _AddStudentCardScreenState extends State<AddStudentCardScreen>
       _nameController.clear();
       barcodeData = null;
       showBarcodeCard = false;
+      nfcStatus = null;
       errorMessage = null;
     });
     _animationController.reset();
@@ -579,6 +768,10 @@ class _AddStudentCardScreenState extends State<AddStudentCardScreen>
             if (errorMessage != null) ...[
               const SizedBox(height: 16),
               _buildErrorCard(),
+            ],
+            if (nfcStatus != null) ...[
+              const SizedBox(height: 16),
+              _buildStatusCard(),
             ],
             if (showBarcodeCard) ...[
               const SizedBox(height: 24),
@@ -657,6 +850,48 @@ class _AddStudentCardScreenState extends State<AddStudentCardScreen>
                             color: AppColors.textLight,
                           ),
                         ),
+                        if (kIsWeb) ...[
+                          const SizedBox(width: 8),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 2,
+                            ),
+                            decoration: BoxDecoration(
+                              color: Colors.orange.withOpacity(0.2),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: const Text(
+                              'WEB',
+                              style: TextStyle(
+                                fontSize: 10,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.orange,
+                              ),
+                            ),
+                          ),
+                        ],
+                        if (!kIsWeb && nfcAvailable) ...[
+                          const SizedBox(width: 8),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 2,
+                            ),
+                            decoration: BoxDecoration(
+                              color: Colors.green.withOpacity(0.2),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: const Text(
+                              'NFC',
+                              style: TextStyle(
+                                fontSize: 10,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.green,
+                              ),
+                            ),
+                          ),
+                        ],
                       ],
                     ),
                   ],
@@ -681,7 +916,9 @@ class _AddStudentCardScreenState extends State<AddStudentCardScreen>
                 const SizedBox(width: 12),
                 Expanded(
                   child: Text(
-                    'Generate unique barcodes for student identification. Download works on all platforms.',
+                    kIsWeb
+                        ? 'Generate unique barcodes for student identification. Download works on all platforms. NFC writing requires mobile app.'
+                        : 'Generate unique barcodes and NFC cards for seamless student identification and attendance tracking.',
                     style: const TextStyle(
                       fontSize: 14,
                       color: AppColors.textDark,
@@ -924,6 +1161,42 @@ class _AddStudentCardScreenState extends State<AddStudentCardScreen>
                 color: Colors.red,
                 fontWeight: FontWeight.w600,
               ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStatusCard() {
+    final isSuccess = nfcStatus!.toLowerCase().contains('success');
+    final color = isSuccess ? AppColors.success : Colors.red;
+    final bgColor = isSuccess ? Colors.green.shade50 : Colors.red.shade50;
+    final borderColor = isSuccess ? Colors.green.shade200 : Colors.red.shade200;
+    final icon = isSuccess ? Icons.check_circle_rounded : Icons.error_rounded;
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: bgColor,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: borderColor),
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: color.withOpacity(0.2),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Icon(icon, color: color, size: 20),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              nfcStatus!,
+              style: TextStyle(color: color, fontWeight: FontWeight.w600),
             ),
           ),
         ],
@@ -1194,7 +1467,7 @@ class _AddStudentCardScreenState extends State<AddStudentCardScreen>
                         decoration: BoxDecoration(
                           gradient: LinearGradient(
                             colors:
-                                isGeneratingBarcode
+                                isWritingNfc
                                     ? [
                                       Colors.grey.shade300,
                                       Colors.grey.shade400,
@@ -1206,7 +1479,7 @@ class _AddStudentCardScreenState extends State<AddStudentCardScreen>
                           ),
                           borderRadius: BorderRadius.circular(14),
                           boxShadow:
-                              isGeneratingBarcode
+                              isWritingNfc
                                   ? null
                                   : [
                                     BoxShadow(
@@ -1217,10 +1490,9 @@ class _AddStudentCardScreenState extends State<AddStudentCardScreen>
                                   ],
                         ),
                         child: ElevatedButton.icon(
-                          onPressed:
-                              isGeneratingBarcode ? null : _generateBarcode,
+                          onPressed: isWritingNfc ? null : _writeNfc,
                           icon:
-                              isGeneratingBarcode
+                              isWritingNfc
                                   ? const SizedBox(
                                     width: 16,
                                     height: 16,
@@ -1231,14 +1503,9 @@ class _AddStudentCardScreenState extends State<AddStudentCardScreen>
                                       ),
                                     ),
                                   )
-                                  : const Icon(
-                                    Icons.qr_code_2_rounded,
-                                    size: 20,
-                                  ),
+                                  : const Icon(Icons.nfc_rounded, size: 20),
                           label: Text(
-                            isGeneratingBarcode
-                                ? 'Generating...'
-                                : 'Generate Student Card',
+                            isWritingNfc ? 'Writing...' : 'Write NFC',
                             style: const TextStyle(
                               fontWeight: FontWeight.w700,
                               fontSize: 14,
@@ -1348,7 +1615,6 @@ class _AddStudentCardScreenState extends State<AddStudentCardScreen>
             ),
           ),
         ),
-      ),
-    );
+      ));
   }
 }

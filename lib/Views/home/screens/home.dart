@@ -10,6 +10,7 @@ import 'package:sqlite_crud_app/Views/home/screens/payment_screen.dart';
 import 'package:sqlite_crud_app/Views/home/screens/dashboard_screen.dart';
 import 'package:sqlite_crud_app/Components/quick_actions.dart';
 import 'package:sqlite_crud_app/Components/today_activity.dart';
+import 'package:sqlite_crud_app/Views/async/screens/async_screen.dart';
 
 // Remove inline mock data classes and use shared models if needed
 
@@ -91,12 +92,18 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     final action = isCheckIn ? 'Check In' : 'Check Out';
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text('$action successful!'),
+        content: Text('[1m$action successful!'),
         backgroundColor: isCheckIn ? AppColors.success : AppColors.error,
         behavior: SnackBarBehavior.floating,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
       ),
     );
+    // Navigate to AsyncScreen after check-in or check-out
+    Future.delayed(const Duration(milliseconds: 300), () {
+      Navigator.of(
+        context,
+      ).push(MaterialPageRoute(builder: (context) => AsyncScreen()));
+    });
   }
 
   String _getSessionDuration() {
