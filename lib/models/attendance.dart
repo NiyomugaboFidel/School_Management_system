@@ -40,6 +40,9 @@ class AttendanceLog {
   final bool synced;
   final DateTime? createdAt;
   final DateTime? updatedAt;
+  final String? fullName;
+  final String? regNumber;
+  final String? className;
 
   const AttendanceLog({
     required this.id,
@@ -53,6 +56,9 @@ class AttendanceLog {
     this.synced = false,
     this.createdAt,
     this.updatedAt,
+    this.fullName,
+    this.regNumber,
+    this.className,
   });
 
   factory AttendanceLog.fromMap(Map<String, dynamic> map) {
@@ -66,8 +72,17 @@ class AttendanceLog {
       profileImage: map['profile_image']?.toString(),
       notes: map['notes']?.toString(),
       synced: (map['synced']?.toInt() ?? 0) == 1,
-      createdAt: map['created_at'] != null ? DateTime.tryParse(map['created_at'].toString()) : null,
-      updatedAt: map['updated_at'] != null ? DateTime.tryParse(map['updated_at'].toString()) : null,
+      createdAt:
+          map['created_at'] != null
+              ? DateTime.tryParse(map['created_at'].toString())
+              : null,
+      updatedAt:
+          map['updated_at'] != null
+              ? DateTime.tryParse(map['updated_at'].toString())
+              : null,
+      fullName: map['full_name']?.toString(),
+      regNumber: map['reg_number']?.toString(),
+      className: map['class_name']?.toString(),
     );
   }
 
@@ -116,5 +131,6 @@ class AttendanceLog {
   }
 
   @override
-  String toString() => 'AttendanceLog(id: $id, student: $studentId, date: $date, status: $status)';
+  String toString() =>
+      'AttendanceLog(id: $id, student: $studentId, date: $date, status: $status)';
 }

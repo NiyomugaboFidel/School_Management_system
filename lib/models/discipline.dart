@@ -10,6 +10,9 @@ class DisciplineRecord {
   final bool resolved;
   final DateTime? createdAt;
   final DateTime? updatedAt;
+  final String? fullName;
+  final String? regNumber;
+  final String? className;
 
   const DisciplineRecord({
     required this.id,
@@ -22,6 +25,9 @@ class DisciplineRecord {
     this.resolved = false,
     this.createdAt,
     this.updatedAt,
+    this.fullName,
+    this.regNumber,
+    this.className,
   });
 
   factory DisciplineRecord.fromMap(Map<String, dynamic> map) {
@@ -34,8 +40,17 @@ class DisciplineRecord {
       recordedBy: map['recorded_by']?.toString() ?? '',
       date: DateTime.parse(map['date'].toString()),
       resolved: (map['resolved']?.toInt() ?? 0) == 1,
-      createdAt: map['created_at'] != null ? DateTime.tryParse(map['created_at'].toString()) : null,
-      updatedAt: map['updated_at'] != null ? DateTime.tryParse(map['updated_at'].toString()) : null,
+      createdAt:
+          map['created_at'] != null
+              ? DateTime.tryParse(map['created_at'].toString())
+              : null,
+      updatedAt:
+          map['updated_at'] != null
+              ? DateTime.tryParse(map['updated_at'].toString())
+              : null,
+      fullName: map['full_name']?.toString(),
+      regNumber: map['reg_number']?.toString(),
+      className: map['class_name']?.toString(),
     );
   }
 
@@ -65,6 +80,9 @@ class DisciplineRecord {
     bool? resolved,
     DateTime? createdAt,
     DateTime? updatedAt,
+    String? fullName,
+    String? regNumber,
+    String? className,
   }) {
     return DisciplineRecord(
       id: id ?? this.id,
@@ -77,9 +95,13 @@ class DisciplineRecord {
       resolved: resolved ?? this.resolved,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
+      fullName: fullName ?? this.fullName,
+      regNumber: regNumber ?? this.regNumber,
+      className: className ?? this.className,
     );
   }
 
   @override
-  String toString() => 'DisciplineRecord(id: $id, student: $studentId, type: $type, resolved: $resolved)';
+  String toString() =>
+      'DisciplineRecord(id: $id, student: $studentId, type: $type, resolved: $resolved)';
 }

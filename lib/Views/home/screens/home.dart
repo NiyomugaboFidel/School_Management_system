@@ -53,18 +53,28 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     _fadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
       CurvedAnimation(parent: _animationController, curve: Curves.easeInOut),
     );
-    _loadUserSessionAndTimes();
+    _checkAndLoadUserSession();
     _animationController.forward();
   }
 
-  Future<void> _loadUserSessionAndTimes() async {
+  Future<void> _checkAndLoadUserSession() async {
     setState(() => isLoading = true);
     await UserSession().initialize();
+    final user = UserSession().currentUser;
+    final isValid = UserSession().isSessionValid && user != null;
+    if (!isValid) {
+      // Session expired or user missing, force logout and redirect
+      await UserSession().logout();
+      if (mounted) {
+        Navigator.of(context).pushNamedAndRemoveUntil('/login', (route) => false);
+      }
+      return;
+    }
     final prefs = await SharedPreferences.getInstance();
     final checkInString = prefs.getString(_checkInKey);
     final checkOutString = prefs.getString(_checkOutKey);
     setState(() {
-      currentUser = UserSession().currentUser;
+      currentUser = user;
       checkInTime =
           checkInString != null ? DateTime.tryParse(checkInString) : null;
       checkOutTime =
@@ -92,7 +102,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     final action = isCheckIn ? 'Check In' : 'Check Out';
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text('[1m$action successful!'),
+        content: Text('$action successful!'),
         backgroundColor: isCheckIn ? AppColors.success : AppColors.error,
         behavior: SnackBarBehavior.floating,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
@@ -120,6 +130,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       return const Center(child: CircularProgressIndicator());
     }
 
+    final user = UserSession().currentUser;
     final actions = [
       {
         'title': 'Check In',
@@ -142,7 +153,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            _buildWelcomeCard(),
+            _buildWelcomeCard(user),
             const SizedBox(height: 20),
             QuickActions(
               actions: actions,
@@ -153,7 +164,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
               checkInTime: checkInTime,
               checkOutTime: checkOutTime,
               sessionDuration: _getSessionDuration(),
-              userName: currentUser?.displayName ?? 'User',
+              userName: user?.displayName ?? 'User',
             ),
             const SizedBox(height: 20),
             _buildStatisticsCards(),
@@ -163,7 +174,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     );
   }
 
-  Widget _buildWelcomeCard() {
+  Widget _buildWelcomeCard(User? user) {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(20),
@@ -192,14 +203,10 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                 radius: 25,
                 backgroundColor: Colors.white.withOpacity(0.2),
                 child: Text(
-                  currentUser?.fullName != null &&
-                          currentUser!.fullName!.isNotEmpty
-                      ? currentUser!.fullName!
-                          .split(' ')
-                          .map((e) => e[0])
-                          .join('')
-                      : (currentUser?.username.isNotEmpty == true
-                          ? currentUser!.username[0].toUpperCase()
+                  (user?.fullName != null && user?.fullName?.isNotEmpty == true)
+                      ? user!.fullName!.split(' ').map((e) => e[0]).join('')
+                      : (user?.username != null && user?.username.isNotEmpty == true
+                          ? user!.username[0].toUpperCase()
                           : 'U'),
                   style: const TextStyle(
                     color: Colors.white,
@@ -221,7 +228,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                       ),
                     ),
                     Text(
-                      currentUser?.displayName ?? 'User',
+                      user?.displayName ?? 'User',
                       style: const TextStyle(
                         color: Colors.white,
                         fontSize: 20,
@@ -229,7 +236,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                       ),
                     ),
                     Text(
-                      currentUser?.role.value ?? '',
+                      user?.role.value ?? '',
                       style: TextStyle(
                         color: Colors.white.withOpacity(0.8),
                         fontSize: 12,
@@ -256,7 +263,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                 ),
                 const SizedBox(width: 8),
                 Text(
-                  'Today: ${DateTime.now().day}/${DateTime.now().month}/${DateTime.now().year}',
+                  'Today:  ${DateTime.now().day}/${DateTime.now().month}/${DateTime.now().year}',
                   style: TextStyle(
                     color: Colors.white.withOpacity(0.9),
                     fontSize: 14,
@@ -275,9 +282,9 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
             ),
           ),
         ],
-      ),
-    );
-  }
+            ),
+          );
+        }
 
   Widget _buildStatisticsCards() {
     return const SizedBox.shrink();

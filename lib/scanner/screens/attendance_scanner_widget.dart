@@ -7,8 +7,7 @@ import 'package:sqlite_crud_app/models/attendance.dart';
 import 'package:sqlite_crud_app/Components/br_code.dart';
 import 'package:sqlite_crud_app/Components/nfc_widget.dart';
 import 'package:sqlite_crud_app/services/auth_services.dart';
-
-// Use ScannerType from scan_result.dart or define if not available
+import 'package:sqlite_crud_app/SQLite/database_helper.dart';
 import 'package:sqlite_crud_app/scanner/screens/scanner_screen.dart'
     show ScannerType;
 
@@ -30,7 +29,6 @@ class AttendanceScannerWidget extends StatefulWidget {
 class _AttendanceScannerWidgetState extends State<AttendanceScannerWidget>
     with TickerProviderStateMixin {
   late final StudentService _studentService;
-  late final AttendanceService _attendanceService;
   List<AttendanceLog> _todayAttendance = [];
   bool _isProcessing = false;
   ScannerType _selectedScanner = ScannerType.none;
@@ -50,7 +48,6 @@ class _AttendanceScannerWidgetState extends State<AttendanceScannerWidget>
 
   void _initializeServices() {
     _studentService = StudentService();
-    _attendanceService = AttendanceService();
   }
 
   void _setupAnimations() {
@@ -82,7 +79,7 @@ class _AttendanceScannerWidgetState extends State<AttendanceScannerWidget>
 
   Future<void> _loadTodayAttendance() async {
     try {
-      final attendanceList = await _attendanceService.getTodayAttendance();
+      final attendanceList = await AttendanceService().getTodayAttendance();
       setState(() {
         _todayAttendance = attendanceList;
       });
@@ -98,18 +95,40 @@ class _AttendanceScannerWidgetState extends State<AttendanceScannerWidget>
     });
     try {
       Student? student;
+      String rawId = '';
       if (scanResult.type == ScanType.nfc) {
-        student = await _studentService.getStudentByNFC(scanResult.data);
+        rawId = scanResult.data;
       } else if (scanResult.type == ScanType.barcode ||
           scanResult.type == ScanType.qrCode) {
-        student = await _studentService.getStudentByBarcode(scanResult.data);
+        rawId = scanResult.id;
       }
+      print(
+        '[DEBUG] Raw scanned ID: \x1B[33m$rawId\x1B[0m (type: \x1B[36m${rawId.runtimeType}\x1B[0m)',
+      );
+
+      int? parsedId = int.tryParse(rawId.trim());
+      if (parsedId == null) {
+        print('[ERROR] Failed to parse scanned ID to int: $rawId');
+        _showErrorSnackBar('Invalid student ID scanned: $rawId');
+        return;
+      }
+
+      print('[DEBUG] Parsed scanned ID as int: \x1B[32m$parsedId\x1B[0m');
+
+      // Use parsedId for lookup
+      student = await _studentService.getStudentById(parsedId.toString());
+
+      print(
+        '[DEBUG] Student lookup result: ${student != null ? 'FOUND' : 'NOT FOUND'}',
+      );
+
       if (student == null) {
         _showErrorSnackBar(
-          'Student not found for scanned [1m${_getScanTypeName(scanResult.type)}',
+          'Student not found for scanned ${_getScanTypeName(scanResult.type)}',
         );
         return;
       }
+
       final existingAttendance = _todayAttendance.firstWhere(
         (attendance) => attendance.studentId == student!.studentId,
         orElse:
@@ -128,11 +147,14 @@ class _AttendanceScannerWidgetState extends State<AttendanceScannerWidget>
       }
       final currentTime = TimeOfDay.now();
       final attendanceStatus = _determineAttendanceStatus(currentTime);
-      final success = await _attendanceService.markAttendance(
+      final status = attendanceStatus.value; // Use capitalized value for DB
+      final success = await DatabaseHelper().markAttendance(
         student.studentId,
-        attendanceStatus.name,
+        status,
         widget.currentUserName,
-        notes: _getAttendanceNotes(attendanceStatus, scanResult.type),
+      );
+      print(
+        '[DEBUG] Attendance mark result: ${success ? 'SUCCESS' : 'FAILURE'}',
       );
       if (success) {
         _showSuccessDialog(student, attendanceStatus, scanResult.type);
@@ -142,6 +164,7 @@ class _AttendanceScannerWidgetState extends State<AttendanceScannerWidget>
         _showErrorSnackBar('Failed to mark attendance for ${student.fullName}');
       }
     } catch (e) {
+      print('[ERROR] Exception in _handleScanResult: $e');
       _showErrorSnackBar('Error processing scan: $e');
     } finally {
       setState(() {
@@ -213,11 +236,14 @@ class _AttendanceScannerWidgetState extends State<AttendanceScannerWidget>
       if (!confirmed) return;
       int successCount = 0;
       for (final student in unmarkedStudents) {
-        final success = await _attendanceService.markAttendance(
+        const status = 'Absent';
+        final success = await DatabaseHelper().markAttendance(
           student.studentId,
-          AttendanceStatus.absent.name,
-          widget.currentUserName,
-          notes: 'Auto-marked absent - end of day process',
+          // AttendanceStatus.absent.name,
+          // widget.currentUserName,
+          // notes: 'Auto-marked absent - end of day process',
+          status,
+          'CurrentUser',
         );
         if (success) successCount++;
       }
@@ -632,6 +658,38 @@ class _AttendanceScannerWidgetState extends State<AttendanceScannerWidget>
                       color: AppColors.textDark,
                     ),
                   ),
+                  const Spacer(),
+                  // Test button for emulator
+                  ElevatedButton.icon(
+                    onPressed: () async {
+                      // Replace with a valid test student ID from your DB
+                      const testStudentId = '20240001';
+                      await _handleScanResult(
+                        ScanResult(
+                          id: testStudentId,
+                          data: testStudentId,
+                          type:
+                              _selectedScanner == ScannerType.nfc
+                                  ? ScanType.nfc
+                                  : ScanType.barcode,
+                          timestamp: DateTime.now(),
+                        ),
+                      );
+                    },
+                    icon: const Icon(Icons.bug_report),
+                    label: const Text('Test'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.info,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 8,
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                    ),
+                  ),
                 ],
               ),
               const SizedBox(height: 16),
@@ -764,14 +822,26 @@ class _AttendanceScannerWidgetState extends State<AttendanceScannerWidget>
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      children: [
-        if (_selectedScanner == ScannerType.none)
-          _buildScannerSelection()
-        else
-          _buildScannerView(),
-        if (_todayAttendance.isNotEmpty) _buildAttendanceStats(),
-      ],
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        return SingleChildScrollView(
+          child: ConstrainedBox(
+            constraints: BoxConstraints(minHeight: constraints.maxHeight),
+            child: IntrinsicHeight(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  if (_selectedScanner == ScannerType.none)
+                    _buildScannerSelection()
+                  else
+                    _buildScannerView(),
+                  if (_todayAttendance.isNotEmpty) _buildAttendanceStats(),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
     );
   }
 }

@@ -4,7 +4,6 @@ import 'package:sqlite_crud_app/models/student.dart';
 
 import '../models/user.dart';
 
-
 /// Example usage of the improved DatabaseHelper
 // ============================= CLASS AuthService =============================
 class AuthService {
@@ -20,7 +19,9 @@ class AuthService {
   }) async {
     try {
       // Validate input data
-      if (username.trim().isEmpty || password.length < 6 || fullName.trim().isEmpty) {
+      if (username.trim().isEmpty ||
+          password.length < 6 ||
+          fullName.trim().isEmpty) {
         return 'Please provide valid username, password (min 6 chars), and full name';
       }
 
@@ -45,7 +46,7 @@ class AuthService {
       );
 
       final result = await _dbHelper.createUser(user);
-      
+
       if (result.success) {
         DatabaseLogger.logDatabaseOperation('SignUp', true);
         return null; // Success
@@ -63,7 +64,7 @@ class AuthService {
   Future<SignInResult> signIn(String username, String password) async {
     try {
       final result = await _dbHelper.authenticate(username, password);
-      
+
       if (result.success && result.user != null) {
         DatabaseLogger.logDatabaseOperation('SignIn', true);
         return SignInResult.success(result.user!);
@@ -82,7 +83,11 @@ class AuthService {
     try {
       return await _dbHelper.getUserByUsername(username);
     } catch (e) {
-      DatabaseLogger.logDatabaseOperation('GetCurrentUser', false, e.toString());
+      DatabaseLogger.logDatabaseOperation(
+        'GetCurrentUser',
+        false,
+        e.toString(),
+      );
       return null;
     }
   }
@@ -110,17 +115,29 @@ class AuthService {
   }
 
   // ============================= CHANGE PASSWORD =============================
-  Future<bool> changePassword(int userId, String oldPassword, String newPassword) async {
+  Future<bool> changePassword(
+    int userId,
+    String oldPassword,
+    String newPassword,
+  ) async {
     try {
       if (newPassword.length < 6) {
         return false;
       }
-      
-      final success = await _dbHelper.changePassword(userId, oldPassword, newPassword);
+
+      final success = await _dbHelper.changePassword(
+        userId,
+        oldPassword,
+        newPassword,
+      );
       DatabaseLogger.logDatabaseOperation('ChangePassword', success);
       return success;
     } catch (e) {
-      DatabaseLogger.logDatabaseOperation('ChangePassword', false, e.toString());
+      DatabaseLogger.logDatabaseOperation(
+        'ChangePassword',
+        false,
+        e.toString(),
+      );
       return false;
     }
   }
@@ -132,7 +149,11 @@ class AuthService {
       DatabaseLogger.logDatabaseOperation('DeactivateUser', success);
       return success;
     } catch (e) {
-      DatabaseLogger.logDatabaseOperation('DeactivateUser', false, e.toString());
+      DatabaseLogger.logDatabaseOperation(
+        'DeactivateUser',
+        false,
+        e.toString(),
+      );
       return false;
     }
   }
@@ -152,7 +173,8 @@ class SignInResult {
   SignInResult._(this.success, this.user, this.error);
 
   factory SignInResult.success(User user) => SignInResult._(true, user, null);
-  factory SignInResult.failure(String error) => SignInResult._(false, null, error);
+  factory SignInResult.failure(String error) =>
+      SignInResult._(false, null, error);
 }
 
 // ============================= CLASS UserRepository =============================
@@ -175,15 +197,19 @@ class UserRepository {
       final allUsers = await _dbHelper.getAllActiveUsers();
       final startIndex = (page - 1) * limit;
       final endIndex = startIndex + limit;
-      
+
       if (startIndex >= allUsers.length) return [];
-      
+
       return allUsers.sublist(
         startIndex,
         endIndex > allUsers.length ? allUsers.length : endIndex,
       );
     } catch (e) {
-      DatabaseLogger.logDatabaseOperation('GetUsersWithPagination', false, e.toString());
+      DatabaseLogger.logDatabaseOperation(
+        'GetUsersWithPagination',
+        false,
+        e.toString(),
+      );
       return [];
     }
   }
@@ -192,13 +218,13 @@ class UserRepository {
   Future<List<User>> searchUsers(String query) async {
     try {
       if (query.trim().isEmpty) return [];
-      
+
       final allUsers = await _dbHelper.getAllActiveUsers();
       return allUsers.where((user) {
         final searchQuery = query.toLowerCase();
         return user.fullName?.toLowerCase().contains(searchQuery) == true ||
-               user.username.toLowerCase().contains(searchQuery) ||
-               user.email?.toLowerCase().contains(searchQuery) == true;
+            user.username.toLowerCase().contains(searchQuery) ||
+            user.email?.toLowerCase().contains(searchQuery) == true;
       }).toList();
     } catch (e) {
       DatabaseLogger.logDatabaseOperation('SearchUsers', false, e.toString());
@@ -210,27 +236,33 @@ class UserRepository {
   Future<CreateUsersResult> createMultipleUsers(List<User> users) async {
     final List<String> errors = [];
     final List<User> successfulUsers = [];
-    
+
     try {
       for (final user in users) {
         final result = await _dbHelper.createUser(user);
         if (result.success && result.user != null) {
           successfulUsers.add(result.user!);
         } else {
-          errors.add('Failed to create user ${user.username}: ${result.message}');
+          errors.add(
+            'Failed to create user ${user.username}: ${result.message}',
+          );
         }
       }
 
       final success = errors.isEmpty;
       DatabaseLogger.logDatabaseOperation('CreateMultipleUsers', success);
-      
+
       return CreateUsersResult(
         success: success,
         createdUsers: successfulUsers,
         errors: errors,
       );
     } catch (e) {
-      DatabaseLogger.logDatabaseOperation('CreateMultipleUsers', false, e.toString());
+      DatabaseLogger.logDatabaseOperation(
+        'CreateMultipleUsers',
+        false,
+        e.toString(),
+      );
       return CreateUsersResult(
         success: false,
         createdUsers: successfulUsers,
@@ -245,7 +277,11 @@ class UserRepository {
       final allUsers = await _dbHelper.getAllActiveUsers();
       return allUsers.where((user) => user.role == role).toList();
     } catch (e) {
-      DatabaseLogger.logDatabaseOperation('GetUsersByRole', false, e.toString());
+      DatabaseLogger.logDatabaseOperation(
+        'GetUsersByRole',
+        false,
+        e.toString(),
+      );
       return [];
     }
   }
@@ -254,7 +290,7 @@ class UserRepository {
   Future<UserStatistics> getUserStatistics() async {
     try {
       final allUsers = await _dbHelper.getAllActiveUsers();
-      
+
       final stats = UserStatistics(
         totalUsers: allUsers.length,
         adminCount: allUsers.where((u) => u.role == 'admin').length,
@@ -265,7 +301,11 @@ class UserRepository {
 
       return stats;
     } catch (e) {
-      DatabaseLogger.logDatabaseOperation('GetUserStatistics', false, e.toString());
+      DatabaseLogger.logDatabaseOperation(
+        'GetUserStatistics',
+        false,
+        e.toString(),
+      );
       return UserStatistics.empty();
     }
   }
@@ -280,7 +320,11 @@ class StudentService {
     try {
       return await _dbHelper.getAllStudents();
     } catch (e) {
-      DatabaseLogger.logDatabaseOperation('GetAllStudents', false, e.toString());
+      DatabaseLogger.logDatabaseOperation(
+        'GetAllStudents',
+        false,
+        e.toString(),
+      );
       return [];
     }
   }
@@ -290,7 +334,11 @@ class StudentService {
     try {
       return await _dbHelper.searchStudents(query);
     } catch (e) {
-      DatabaseLogger.logDatabaseOperation('SearchStudents', false, e.toString());
+      DatabaseLogger.logDatabaseOperation(
+        'SearchStudents',
+        false,
+        e.toString(),
+      );
       return [];
     }
   }
@@ -300,7 +348,11 @@ class StudentService {
     try {
       return await _dbHelper.getStudentByBarcode(barcode);
     } catch (e) {
-      DatabaseLogger.logDatabaseOperation('GetStudentByBarcode', false, e.toString());
+      DatabaseLogger.logDatabaseOperation(
+        'GetStudentByBarcode',
+        false,
+        e.toString(),
+      );
       return null;
     }
   }
@@ -310,17 +362,40 @@ class StudentService {
     try {
       return await _dbHelper.getStudentByNFC(nfcTagId);
     } catch (e) {
-      DatabaseLogger.logDatabaseOperation('GetStudentByNFC', false, e.toString());
+      DatabaseLogger.logDatabaseOperation(
+        'GetStudentByNFC',
+        false,
+        e.toString(),
+      );
       return null;
     }
   }
+
+  // ============================= GET STUDENT BY NFC =============================
+  Future<Student?> getStudentById(String studentId) async {
+    try {
+      return await _dbHelper.getStudentById(studentId);
+    } catch (e) {
+      DatabaseLogger.logDatabaseOperation(
+        'GetStudentByNFC',
+        false,
+        e.toString(),
+      );
+      return null;
+    }
+  }
+
 
   // ============================= GET STUDENTS BY CLASS =============================
   Future<List<Student>> getStudentsByClass(int classId) async {
     try {
       return await _dbHelper.getStudentsByClass(classId);
     } catch (e) {
-      DatabaseLogger.logDatabaseOperation('GetStudentsByClass', false, e.toString());
+      DatabaseLogger.logDatabaseOperation(
+        'GetStudentsByClass',
+        false,
+        e.toString(),
+      );
       return [];
     }
   }
@@ -331,13 +406,27 @@ class AttendanceService {
   final DatabaseHelper _dbHelper = DatabaseHelper();
 
   // ============================= MARK ATTENDANCE =============================
-  Future<bool> markAttendance(int studentId, String status, String markedBy, {String? notes}) async {
+  Future<bool> markAttendance(
+    int studentId,
+    String status,
+    String markedBy, {
+    String? notes,
+  }) async {
     try {
-      final success = await _dbHelper.markAttendance(studentId, status, markedBy, notes: notes);
+      final success = await _dbHelper.markAttendance(
+        studentId,
+        status,
+        markedBy,
+        notes: notes,
+      );
       DatabaseLogger.logDatabaseOperation('MarkAttendance', success);
       return success;
     } catch (e) {
-      DatabaseLogger.logDatabaseOperation('MarkAttendance', false, e.toString());
+      DatabaseLogger.logDatabaseOperation(
+        'MarkAttendance',
+        false,
+        e.toString(),
+      );
       return false;
     }
   }
@@ -347,7 +436,11 @@ class AttendanceService {
     try {
       return await _dbHelper.getTodayAttendance();
     } catch (e) {
-      DatabaseLogger.logDatabaseOperation('GetTodayAttendance', false, e.toString());
+      DatabaseLogger.logDatabaseOperation(
+        'GetTodayAttendance',
+        false,
+        e.toString(),
+      );
       return [];
     }
   }
@@ -355,11 +448,15 @@ class AttendanceService {
 
 // ============================= CLASS DatabaseLogger =============================
 class DatabaseLogger {
-  static void logDatabaseOperation(String operation, bool success, [String? error]) {
+  static void logDatabaseOperation(
+    String operation,
+    bool success, [
+    String? error,
+  ]) {
     final timestamp = DateTime.now().toIso8601String();
     final status = success ? 'SUCCESS' : 'FAILED';
     final message = '[$timestamp] $operation: $status';
-    
+
     if (error != null) {
       print('$message - Error: $error');
     } else {
@@ -493,8 +590,12 @@ class UserStatistics {
     activeUsers: 0,
   );
 
-  double get adminPercentage => totalUsers > 0 ? (adminCount / totalUsers) * 100 : 0;
-  double get teacherPercentage => totalUsers > 0 ? (teacherCount / totalUsers) * 100 : 0;
-  double get userPercentage => totalUsers > 0 ? (userCount / totalUsers) * 100 : 0;
-  double get activePercentage => totalUsers > 0 ? (activeUsers / totalUsers) * 100 : 0;
+  double get adminPercentage =>
+      totalUsers > 0 ? (adminCount / totalUsers) * 100 : 0;
+  double get teacherPercentage =>
+      totalUsers > 0 ? (teacherCount / totalUsers) * 100 : 0;
+  double get userPercentage =>
+      totalUsers > 0 ? (userCount / totalUsers) * 100 : 0;
+  double get activePercentage =>
+      totalUsers > 0 ? (activeUsers / totalUsers) * 100 : 0;
 }

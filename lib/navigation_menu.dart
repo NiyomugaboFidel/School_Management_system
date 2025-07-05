@@ -17,7 +17,9 @@ class NavigationMenu extends StatelessWidget {
       body: navigationController.screens[navigationController.selectedIndex],
       bottomNavigationBar: NavigationBarTheme(
         data: NavigationBarThemeData(
-          indicatorColor: AppColors.primary.withOpacity(0.2),
+          backgroundColor: const Color.fromARGB(254, 21, 144, 252),
+
+          indicatorColor: AppColors.white.withOpacity(0.2),
           labelTextStyle: MaterialStateProperty.resolveWith<TextStyle>((
             Set<MaterialState> states,
           ) {
@@ -25,22 +27,22 @@ class NavigationMenu extends StatelessWidget {
               return const TextStyle(
                 fontSize: 14,
                 fontWeight: FontWeight.bold,
-                color: AppColors.primary,
+                color: AppColors.white,
               );
             }
             return const TextStyle(
               fontSize: 12,
               fontWeight: FontWeight.w500,
-              color: Colors.grey,
+              color: Colors.white,
             );
           }),
           iconTheme: MaterialStateProperty.resolveWith<IconThemeData>((
             Set<MaterialState> states,
           ) {
             if (states.contains(MaterialState.selected)) {
-              return const IconThemeData(color: AppColors.primary, size: 28);
+              return const IconThemeData(color: AppColors.white, size: 28);
             }
-            return const IconThemeData(color: Colors.grey, size: 24);
+            return const IconThemeData(color: Colors.white54, size: 24);
           }),
         ),
         child: NavigationBar(
@@ -77,6 +79,5 @@ class NavigationController extends ChangeNotifier {
     RecentRecordsScreen(),
     AsyncScreen(),
     ProfileScreen(),
-    // AddStudentCardScreen(),
   ];
 }

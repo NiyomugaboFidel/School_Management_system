@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:sqlite_crud_app/constants/app_colors.dart';
-import 'package:sqlite_crud_app/SQLite/database_helper_full.dart';
 import 'package:barcode_widget/barcode_widget.dart' as barcode_widget;
 import 'package:flutter/services.dart';
 import 'package:path_provider/path_provider.dart';
@@ -29,8 +28,7 @@ class _AddStudentCardScreenState extends State<AddStudentCardScreen>
   final TextEditingController _nameController = TextEditingController();
   final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
   final GlobalKey _barcodeKey = GlobalKey();
-  final GlobalKey _downloadBarcodeKey =
-      GlobalKey(); // New key for download-only barcode
+  final GlobalKey _downloadBarcodeKey = GlobalKey();
 
   String? barcodeData;
   bool isWritingNfc = false;
@@ -121,56 +119,27 @@ class _AddStudentCardScreenState extends State<AddStudentCardScreen>
 
   Future<void> _generateBarcode() async {
     _clearError();
-
-    if (!_formKey.currentState!.validate()) {
-      return;
-    }
-
+    if (!_formKey.currentState!.validate()) return;
     final studentId = _idController.text.trim();
-
     if (studentId.isEmpty) {
       setState(() {
-        errorMessage = 'Please enter a valid Student ID';
+        errorMessage = 'Enter a valid Student ID.';
       });
       return;
     }
-
     setState(() {
       isGeneratingBarcode = true;
       errorMessage = null;
     });
-
     try {
-      // Check if student already exists
-      final existingStudents = await DatabaseHelper().getAllStudents();
-      final existingStudent =
-          existingStudents
-              .where((s) => s.studentId.toString() == studentId)
-              .firstOrNull;
-
-      if (existingStudent != null) {
-        setState(() {
-          errorMessage = 'Student with ID $studentId already exists';
-          isGeneratingBarcode = false;
-        });
-        return;
-      }
-
-      // Simulate generation delay for better UX
-      await Future.delayed(const Duration(milliseconds: 800));
-
-      // Generate barcode data with student info
+      await Future.delayed(const Duration(milliseconds: 400));
       barcodeData = studentId;
       showBarcodeCard = true;
-
-      // Trigger animations
       _animationController.forward();
-
-      // Haptic feedback
       HapticFeedback.mediumImpact();
-    } catch (e) {
+    } catch (_) {
       setState(() {
-        errorMessage = 'Failed to generate barcode: ${e.toString()}';
+        errorMessage = 'Barcode generation failed.';
       });
     } finally {
       setState(() {
@@ -183,13 +152,13 @@ class _AddStudentCardScreenState extends State<AddStudentCardScreen>
     if (barcodeData == null) return;
     if (kIsWeb) {
       setState(() {
-        errorMessage = 'NFC writing is not supported on web browsers';
+        errorMessage = 'NFC not supported on web.';
       });
       return;
     }
     if (!nfcAvailable) {
       setState(() {
-        errorMessage = 'NFC is not available on this device';
+        errorMessage = 'NFC not available.';
       });
       return;
     }
@@ -204,28 +173,19 @@ class _AddStudentCardScreenState extends State<AddStudentCardScreen>
         barrierDismissible: false,
         builder: (context) => _buildNfcProgressDialog(),
       );
-      // Use NFCService's writeJsonToTag for writing
-      final studentData = {
-        'studentId': barcodeData,
-        'studentName': _nameController.text.trim(),
-        'generatedAt': DateTime.now().toIso8601String(),
-        'type': 'student_card',
-      };
-      final success = await NFCService.instance.writeJsonToTag(studentData);
+      final success = await NFCService.instance.writeTextToTag(barcodeData!);
       Navigator.of(context).pop();
       setState(() {
-        nfcStatus = success
-            ? 'NFC card written successfully!\nStudent ID: $barcodeData'
-            : 'NFC write failed.';
+        nfcStatus = success ? 'NFC card written.' : 'NFC write failed.';
       });
       HapticFeedback.heavyImpact();
       if (success) _showSuccessOverlay();
-    } catch (e) {
+    } catch (_) {
       Navigator.of(context).pop();
-      await NFCService.instance.finish(iosErrorMessage: e.toString());
+      await NFCService.instance.finish(iosErrorMessage: 'NFC write failed.');
       setState(() {
-        nfcStatus = 'NFC write failed: ${e.toString()}';
-        errorMessage = e.toString();
+        nfcStatus = 'NFC write failed.';
+        errorMessage = 'NFC write failed.';
       });
       HapticFeedback.heavyImpact();
     } finally {
@@ -235,7 +195,6 @@ class _AddStudentCardScreenState extends State<AddStudentCardScreen>
     }
   }
 
-  // Build clean barcode widget for download only
   Widget _buildDownloadBarcodeWidget() {
     return Container(
       padding: const EdgeInsets.all(24),
@@ -243,8 +202,8 @@ class _AddStudentCardScreenState extends State<AddStudentCardScreen>
       child: barcode_widget.BarcodeWidget(
         barcode: barcode_widget.Barcode.code128(),
         data: barcodeData!,
-        width: 400, // Increased width for better quality
-        height: 120, // Increased height for better quality
+        width: 400,
+        height: 120,
         drawText: true,
         style: const TextStyle(
           fontSize: 16,
@@ -585,7 +544,7 @@ class _AddStudentCardScreenState extends State<AddStudentCardScreen>
             ),
             title: Row(
               children: [
-                const Icon(Icons.error_outline, color: Colors.red),
+                const Icon(Icons.error_outline, color: AppColors.primary),
                 const SizedBox(width: 8),
                 Text(title),
               ],
@@ -611,7 +570,7 @@ class _AddStudentCardScreenState extends State<AddStudentCardScreen>
             child: Container(
               padding: const EdgeInsets.all(24),
               decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.95),
+                color: Colors.white,
                 borderRadius: BorderRadius.circular(20),
                 boxShadow: [
                   BoxShadow(
@@ -627,18 +586,18 @@ class _AddStudentCardScreenState extends State<AddStudentCardScreen>
                   Container(
                     padding: const EdgeInsets.all(16),
                     decoration: BoxDecoration(
-                      color: AppColors.success.withOpacity(0.1),
+                      color: AppColors.primary.withOpacity(0.1),
                       shape: BoxShape.circle,
                     ),
                     child: Icon(
                       Icons.check_circle,
-                      color: AppColors.success,
+                      color: AppColors.primary,
                       size: 48,
                     ),
                   ),
                   const SizedBox(height: 16),
                   const Text(
-                    'Success!',
+                    'Success',
                     style: TextStyle(
                       fontSize: 24,
                       fontWeight: FontWeight.bold,
@@ -647,7 +606,7 @@ class _AddStudentCardScreenState extends State<AddStudentCardScreen>
                   ),
                   const SizedBox(height: 8),
                   const Text(
-                    'NFC card has been written successfully',
+                    'NFC card written.',
                     textAlign: TextAlign.center,
                     style: TextStyle(fontSize: 16, color: AppColors.textDark),
                   ),
@@ -656,7 +615,6 @@ class _AddStudentCardScreenState extends State<AddStudentCardScreen>
             ),
           ),
     );
-
     Future.delayed(const Duration(seconds: 2), () {
       if (mounted) Navigator.of(context).pop();
     });
@@ -727,17 +685,19 @@ class _AddStudentCardScreenState extends State<AddStudentCardScreen>
     return Scaffold(
       backgroundColor: const Color(0xFFF8FAFC),
       appBar: AppBar(
+        foregroundColor: AppColors.white,
+
         title: const Text(
-          'Student Card Generator',
+          'Student Card Register',
           style: TextStyle(
-            fontWeight: FontWeight.w700,
+            fontWeight: FontWeight.w600,
             color: Colors.white,
             fontSize: 20,
           ),
         ),
         backgroundColor: AppColors.primary,
         elevation: 0,
-        centerTitle: true,
+        centerTitle: false,
         flexibleSpace: Container(
           decoration: BoxDecoration(
             gradient: LinearGradient(
@@ -828,6 +788,11 @@ class _AddStudentCardScreenState extends State<AddStudentCardScreen>
                 ),
               ),
               const SizedBox(width: 16),
+
+
+
+
+              
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -898,36 +863,6 @@ class _AddStudentCardScreenState extends State<AddStudentCardScreen>
                 ),
               ),
             ],
-          ),
-          const SizedBox(height: 16),
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.7),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Row(
-              children: [
-                const Icon(
-                  Icons.info_outline,
-                  color: AppColors.primary,
-                  size: 20,
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Text(
-                    kIsWeb
-                        ? 'Generate unique barcodes for student identification. Download works on all platforms. NFC writing requires mobile app.'
-                        : 'Generate unique barcodes and NFC cards for seamless student identification and attendance tracking.',
-                    style: const TextStyle(
-                      fontSize: 14,
-                      color: AppColors.textDark,
-                      height: 1.4,
-                    ),
-                  ),
-                ),
-              ],
-            ),
           ),
         ],
       ),
@@ -1031,8 +966,8 @@ class _AddStudentCardScreenState extends State<AddStudentCardScreen>
             TextFormField(
               controller: _nameController,
               decoration: InputDecoration(
-                labelText: 'Student Name (Optional)',
-                hintText: 'Enter full name for records',
+                labelText: 'Student Name',
+                hintText: 'Enter full name ',
                 prefixIcon: Container(
                   margin: const EdgeInsets.all(12),
                   padding: const EdgeInsets.all(8),
@@ -1139,26 +1074,30 @@ class _AddStudentCardScreenState extends State<AddStudentCardScreen>
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.red.shade50,
+        color: AppColors.primary.withOpacity(0.08),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.red.shade200),
+        border: Border.all(color: AppColors.primary.withOpacity(0.2)),
       ),
       child: Row(
         children: [
           Container(
             padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
-              color: Colors.red.shade100,
+              color: AppColors.primary.withOpacity(0.15),
               borderRadius: BorderRadius.circular(12),
             ),
-            child: const Icon(Icons.error_outline, color: Colors.red, size: 20),
+            child: const Icon(
+              Icons.error_outline,
+              color: AppColors.primary,
+              size: 20,
+            ),
           ),
           const SizedBox(width: 12),
           Expanded(
             child: Text(
               errorMessage!,
               style: const TextStyle(
-                color: Colors.red,
+                color: AppColors.primary,
                 fontWeight: FontWeight.w600,
               ),
             ),
@@ -1169,12 +1108,11 @@ class _AddStudentCardScreenState extends State<AddStudentCardScreen>
   }
 
   Widget _buildStatusCard() {
-    final isSuccess = nfcStatus!.toLowerCase().contains('success');
-    final color = isSuccess ? AppColors.success : Colors.red;
-    final bgColor = isSuccess ? Colors.green.shade50 : Colors.red.shade50;
-    final borderColor = isSuccess ? Colors.green.shade200 : Colors.red.shade200;
+    final isSuccess = nfcStatus!.toLowerCase().contains('written');
+    final color = AppColors.primary;
+    final bgColor = AppColors.primary.withOpacity(0.08);
+    final borderColor = AppColors.primary.withOpacity(0.2);
     final icon = isSuccess ? Icons.check_circle_rounded : Icons.error_rounded;
-
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -1187,7 +1125,7 @@ class _AddStudentCardScreenState extends State<AddStudentCardScreen>
           Container(
             padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
-              color: color.withOpacity(0.2),
+              color: color.withOpacity(0.15),
               borderRadius: BorderRadius.circular(12),
             ),
             child: Icon(icon, color: color, size: 20),
@@ -1218,7 +1156,7 @@ class _AddStudentCardScreenState extends State<AddStudentCardScreen>
               borderRadius: BorderRadius.circular(20),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.05),
+                  color: Colors.black.withOpacity(0.04),
                   blurRadius: 20,
                   offset: const Offset(0, 8),
                 ),
@@ -1281,65 +1219,11 @@ class _AddStudentCardScreenState extends State<AddStudentCardScreen>
                 const SizedBox(height: 24),
                 Container(
                   padding: const EdgeInsets.all(24),
-                  // decoration: BoxDecoration(
-                  //   gradient: LinearGradient(
-                  //     colors: [Colors.grey.shade50, Colors.white],
-                  //     begin: Alignment.topCenter,
-                  //     end: Alignment.bottomCenter,
-                  //   ),
-                  //   borderRadius: BorderRadius.circular(16),
-                  //   border: Border.all(color: Colors.grey.shade200),
-                  //   boxShadow: [
-                  //     BoxShadow(
-                  //       color: Colors.black.withOpacity(0.02),
-                  //       blurRadius: 10,
-                  //       offset: const Offset(0, 4),
-                  //     ),
-                  //   ],
-                  // ),
+
                   child: RepaintBoundary(
                     key: _barcodeKey,
                     child: Column(
                       children: [
-                        // Student Card Header
-                        // Container(
-                        //   width: double.infinity,
-                        //   padding: const EdgeInsets.all(16),
-                        //   decoration: BoxDecoration(
-                        //     gradient: LinearGradient(
-                        //       colors: [
-                        //         AppColors.primary,
-                        //         AppColors.primary.withOpacity(0.8),
-                        //       ],
-                        //     ),
-                        //     borderRadius: BorderRadius.circular(12),
-                        //   ),
-                        //   child: Column(
-                        //     children: [
-                        //       const Text(
-                        //         'STUDENT ID CARD',
-                        //         style: TextStyle(
-                        //           color: Colors.white,
-                        //           fontWeight: FontWeight.bold,
-                        //           fontSize: 16,
-                        //           letterSpacing: 1.2,
-                        //         ),
-                        //       ),
-                        //       const SizedBox(height: 8),
-                        //       if (_nameController.text.isNotEmpty)
-                        //         Text(
-                        //           _nameController.text.toUpperCase(),
-                        //           style: const TextStyle(
-                        //             color: Colors.white,
-                        //             fontWeight: FontWeight.w600,
-                        //             fontSize: 14,
-                        //           ),
-                        //           textAlign: TextAlign.center,
-                        //         ),
-                        //     ],
-                        //   ),
-                        // ),
-                        // const SizedBox(height: 20),
                         // // Barcode
                         Container(
                           padding: const EdgeInsets.all(16),
@@ -1357,36 +1241,6 @@ class _AddStudentCardScreenState extends State<AddStudentCardScreen>
                             ),
                           ),
                         ),
-                        // const SizedBox(height: 16),
-                        // // Student ID Display
-                        // Container(
-                        //   padding: const EdgeInsets.symmetric(
-                        //     horizontal: 16,
-                        //     vertical: 8,
-                        //   ),
-                        //   decoration: BoxDecoration(
-                        //     color: AppColors.primary.withOpacity(0.1),
-                        //     borderRadius: BorderRadius.circular(8),
-                        //   ),
-                        //   child: Text(
-                        //     'ID: $barcodeData',
-                        //     style: const TextStyle(
-                        //       fontSize: 14,
-                        //       fontWeight: FontWeight.bold,
-                        //       color: AppColors.primary,
-                        //       letterSpacing: 0.5,
-                        //     ),
-                        //   ),
-                        // ),
-                        // const SizedBox(height: 12),
-                        // // Generated timestamp
-                        // Text(
-                        //   'Generated: ${DateTime.now().toString().split('.')[0]}',
-                        //   style: TextStyle(
-                        //     fontSize: 10,
-                        //     color: Colors.grey.shade600,
-                        //   ),
-                        // ),
                       ],
                     ),
                   ),
@@ -1604,7 +1458,7 @@ class _AddStudentCardScreenState extends State<AddStudentCardScreen>
                       style: TextButton.styleFrom(
                         foregroundColor: AppColors.textLight,
                         padding: const EdgeInsets.symmetric(
-                          horizontal: 16,
+                          horizontal: 10,
                           vertical: 8,
                         ),
                       ),
@@ -1615,6 +1469,7 @@ class _AddStudentCardScreenState extends State<AddStudentCardScreen>
             ),
           ),
         ),
-      ));
+      ),
+    );
   }
 }

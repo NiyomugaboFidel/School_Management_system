@@ -1,4 +1,3 @@
-
 import 'package:sqlite_crud_app/SQLite/database_helper.dart';
 
 import '../models/payment.dart';
@@ -81,7 +80,7 @@ class PaymentService {
         JOIN classes c ON s.class_id = c.class_id
         WHERE p.date_paid BETWEEN ? AND ?
       ''';
-      
+
       List<dynamic> whereArgs = [
         startDate.toIso8601String().split('T')[0],
         endDate.toIso8601String().split('T')[0],
@@ -103,7 +102,10 @@ class PaymentService {
   }
 
   /// Get payments by payment type
-  Future<List<Payment>> getPaymentsByType(String paymentType, {int? studentId}) async {
+  Future<List<Payment>> getPaymentsByType(
+    String paymentType, {
+    int? studentId,
+  }) async {
     try {
       final db = await _databaseHelper.database;
       String query = '''
@@ -113,7 +115,7 @@ class PaymentService {
         JOIN classes c ON s.class_id = c.class_id
         WHERE p.payment_type = ?
       ''';
-      
+
       List<dynamic> whereArgs = [paymentType];
 
       if (studentId != null) {
@@ -135,7 +137,8 @@ class PaymentService {
   Future<PaymentStatistics> getStudentPaymentStatistics(int studentId) async {
     try {
       final db = await _databaseHelper.database;
-      final result = await db.rawQuery('''
+      final result = await db.rawQuery(
+        '''
         SELECT 
           COUNT(*) as total_payments,
           SUM(amount) as total_amount,
@@ -146,7 +149,9 @@ class PaymentService {
           MAX(date_paid) as last_payment_date
         FROM payments
         WHERE student_id = ?
-      ''', [studentId]);
+      ''',
+        [studentId],
+      );
 
       if (result.isNotEmpty) {
         final data = result.first;
@@ -156,12 +161,14 @@ class PaymentService {
           averageAmount: (data['average_amount'] as num?)?.toDouble() ?? 0.0,
           minAmount: (data['min_amount'] as num?)?.toDouble() ?? 0.0,
           maxAmount: (data['max_amount'] as num?)?.toDouble() ?? 0.0,
-          firstPaymentDate: data['first_payment_date'] != null 
-              ? DateTime.tryParse(data['first_payment_date'].toString()) 
-              : null,
-          lastPaymentDate: data['last_payment_date'] != null 
-              ? DateTime.tryParse(data['last_payment_date'].toString()) 
-              : null,
+          firstPaymentDate:
+              data['first_payment_date'] != null
+                  ? DateTime.tryParse(data['first_payment_date'].toString())
+                  : null,
+          lastPaymentDate:
+              data['last_payment_date'] != null
+                  ? DateTime.tryParse(data['last_payment_date'].toString())
+                  : null,
         );
       }
 
@@ -173,7 +180,10 @@ class PaymentService {
   }
 
   /// Check if a student has any pending payments (if needed for business logic)
-  Future<bool> hasOutstandingBalance(int studentId, double expectedTotal) async {
+  Future<bool> hasOutstandingBalance(
+    int studentId,
+    double expectedTotal,
+  ) async {
     try {
       final totalPaid = await getStudentTotalPayments(studentId);
       return totalPaid < expectedTotal;
@@ -187,13 +197,16 @@ class PaymentService {
   Future<Payment?> getPaymentByReceiptNumber(String receiptNumber) async {
     try {
       final db = await _databaseHelper.database;
-      final result = await db.rawQuery('''
+      final result = await db.rawQuery(
+        '''
         SELECT p.*, s.full_name, s.reg_number, c.name as class_name
         FROM payments p
         JOIN students s ON p.student_id = s.student_id
         JOIN classes c ON s.class_id = c.class_id
         WHERE p.receipt_number = ?
-      ''', [receiptNumber]);
+      ''',
+        [receiptNumber],
+      );
 
       return result.isNotEmpty ? Payment.fromMap(result.first) : null;
     } catch (e) {

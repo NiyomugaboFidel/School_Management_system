@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
-import 'package:sqlite_crud_app/Views/auth/screens/auth.dart';
 import 'package:sqlite_crud_app/Views/auth/screens/login.dart';
 import 'package:sqlite_crud_app/Views/profile/screens/profile.dart';
 import 'package:sqlite_crud_app/Views/auth/screens/signup.dart';
@@ -10,10 +9,10 @@ import 'package:sqlite_crud_app/constants/app_colors.dart';
 import 'package:sqlite_crud_app/navigation_menu.dart';
 import 'package:sqlite_crud_app/utils/user_session.dart';
 import 'package:sqlite_crud_app/permission_service.dart';
+import 'package:sqlite_crud_app/splash_decider.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-
 
   if (!kIsWeb) {
     await requestAllPermissions();
@@ -49,9 +48,9 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
-      initialRoute: '/',
+      // Use SplashDecider to determine initial route
+      home: const SplashDecider(),
       routes: {
-        '/': (context) => const AuthScreen(),
         '/login': (context) => const LoginScreen(),
         '/signup': (context) => const SignupScreen(),
         '/profile': (context) => ProfileScreen(),

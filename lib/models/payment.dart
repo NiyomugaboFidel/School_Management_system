@@ -11,6 +11,9 @@ class Payment {
   final bool synced;
   final DateTime? createdAt;
   final DateTime? updatedAt;
+  final String? fullName;
+  final String? regNumber;
+  final String? className;
 
   const Payment({
     required this.paymentId,
@@ -24,21 +27,36 @@ class Payment {
     this.synced = false,
     this.createdAt,
     this.updatedAt,
+    this.fullName,
+    this.regNumber,
+    this.className,
   });
 
   factory Payment.fromMap(Map<String, dynamic> map) {
     return Payment(
       paymentId: map['payment_id']?.toInt() ?? 0,
       studentId: map['student_id']?.toInt() ?? 0,
-      amount: (map['amount'] is int) ? (map['amount'] as int).toDouble() : (map['amount']?.toDouble() ?? 0.0),
+      amount:
+          (map['amount'] is int)
+              ? (map['amount'] as int).toDouble()
+              : (map['amount']?.toDouble() ?? 0.0),
       paymentType: map['payment_type']?.toString() ?? '',
       reference: map['reference']?.toString(),
       paymentDate: DateTime.parse(map['payment_date'].toString()),
       receivedBy: map['received_by']?.toString() ?? '',
       notes: map['notes']?.toString(),
       synced: (map['synced']?.toInt() ?? 0) == 1,
-      createdAt: map['created_at'] != null ? DateTime.tryParse(map['created_at'].toString()) : null,
-      updatedAt: map['updated_at'] != null ? DateTime.tryParse(map['updated_at'].toString()) : null,
+      createdAt:
+          map['created_at'] != null
+              ? DateTime.tryParse(map['created_at'].toString())
+              : null,
+      updatedAt:
+          map['updated_at'] != null
+              ? DateTime.tryParse(map['updated_at'].toString())
+              : null,
+      fullName: map['full_name']?.toString(),
+      regNumber: map['reg_number']?.toString(),
+      className: map['class_name']?.toString(),
     );
   }
 
@@ -87,5 +105,6 @@ class Payment {
   }
 
   @override
-  String toString() => 'Payment(id: $paymentId, student: $studentId, amount: $amount, type: $paymentType)';
+  String toString() =>
+      'Payment(id: $paymentId, student: $studentId, amount: $amount, type: $paymentType)';
 }

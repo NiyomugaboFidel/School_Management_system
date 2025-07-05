@@ -5,6 +5,7 @@ import 'package:sqlite_crud_app/constants/app_colors.dart';
 import 'package:sqlite_crud_app/models/user.dart';
 import 'package:sqlite_crud_app/utils/user_session.dart';
 import 'package:sqlite_crud_app/services/auth_services.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 // ============================= CLASS LoginScreen =============================
 class LoginScreen extends StatefulWidget {
@@ -99,6 +100,10 @@ class _LoginScreenState extends State<LoginScreen> {
 
         await userSession.setCurrentUser(result.user!, rememberMe: _isChecked);
 
+        // ✅ Persist login state
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setBool('isLoggedIn', true);
+
         if (mounted) {
           Navigator.pushReplacementNamed(context, '/home');
         }
@@ -136,7 +141,6 @@ class _LoginScreenState extends State<LoginScreen> {
       );
       return SignInResult.success(user);
     } else {
-      print("Invalid web credentials: $username, $password");
       return SignInResult.failure("Invalid credentials");
     }
   }

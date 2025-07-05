@@ -4,6 +4,7 @@ import 'package:sqlite_crud_app/utils/user_session.dart';
 import 'package:sqlite_crud_app/models/user.dart';
 import 'dart:math' as math;
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:sqlite_crud_app/SQLite/database_helper.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({Key? key}) : super(key: key);
@@ -82,23 +83,10 @@ class _ProfileScreenState extends State<ProfileScreen>
           final user = userSession.currentUser;
 
           if (user == null) {
-            return const Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(Icons.person_off, size: 64, color: Colors.grey),
-                  SizedBox(height: 16),
-                  Text(
-                    'No user data available',
-                    style: TextStyle(
-                      fontSize: 18,
-                      color: Colors.grey,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                ],
-              ),
-            );
+            // Try to recover user from shared preferences or other fallback
+            _attemptUserRecovery(context, userSession);
+            // Show a loading indicator while attempting recovery
+            return const Center(child: CircularProgressIndicator());
           }
 
           return CustomScrollView(
@@ -1009,6 +997,7 @@ class _ProfileScreenState extends State<ProfileScreen>
       final prefs = await SharedPreferences.getInstance();
       await prefs.remove('user_check_in_time');
       await prefs.remove('user_check_out_time');
+      await prefs.setBool('isLoggedIn', false); // <-- Clear login state
       await userSession.logout();
       if (mounted) {
         Navigator.of(
@@ -1034,6 +1023,7 @@ class _ProfileScreenState extends State<ProfileScreen>
     } catch (e) {
       if (mounted) {
         Navigator.of(context).pop();
+
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Row(
@@ -1051,6 +1041,47 @@ class _ProfileScreenState extends State<ProfileScreen>
           ),
         );
       }
+    }
+  }
+
+  void _attemptUserRecovery(
+    BuildContext context,
+    UserSession userSession,
+  ) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final isLoggedIn = prefs.getBool('isLoggedIn') ?? false;
+
+      if (isLoggedIn) {
+        // Attempt to recover user data from shared preferences
+        final username = prefs.getString('username');
+        if (username != null && username.isNotEmpty) {
+          // Try to fetch the user from the database
+          final dbHelper = DatabaseHelper();
+          final user = await dbHelper.getUserByUsername(username);
+          if (user != null) {
+            await userSession.setCurrentUser(user, rememberMe: true);
+            if (mounted) {
+              Navigator.of(
+                context,
+              ).pushNamedAndRemoveUntil('/home', (route) => false);
+            }
+            return;
+          }
+        }
+        // User data is incomplete or not found, force logout
+        await _performLogout(context, userSession);
+      } else {
+        // Not logged in, navigate to the login screen
+        if (mounted) {
+          Navigator.of(
+            context,
+          ).pushNamedAndRemoveUntil('/login', (route) => false);
+        }
+      }
+    } catch (e) {
+      // Handle any errors during recovery
+      await _performLogout(context, userSession);
     }
   }
 

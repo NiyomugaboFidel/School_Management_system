@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:sqlite_crud_app/SQLite/database_helper_full.dart';
+import 'package:sqlite_crud_app/SQLite/database_helper.dart';
 import 'package:sqlite_crud_app/constants/app_colors.dart';
 import 'package:sqlite_crud_app/Views/home/screens/add_student_card_screen.dart';
 

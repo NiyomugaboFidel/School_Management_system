@@ -1,4 +1,3 @@
-
 import 'package:sqlite_crud_app/SQLite/database_helper.dart';
 
 import '../models/discipline.dart';
@@ -21,11 +20,14 @@ class DisciplineService {
     try {
       // Validate severity
       if (!['Minor', 'Major', 'Severe'].contains(severity)) {
-        throw ArgumentError('Invalid severity level. Must be Minor, Major, or Severe');
+        throw ArgumentError(
+          'Invalid severity level. Must be Minor, Major, or Severe',
+        );
       }
 
       // Use today's date if incident date not provided
-      final incident = incidentDate ?? DateTime.now().toIso8601String().split('T')[0];
+      final incident =
+          incidentDate ?? DateTime.now().toIso8601String().split('T')[0];
 
       return await _databaseHelper.recordDiscipline(
         studentId: studentId,
@@ -43,7 +45,9 @@ class DisciplineService {
   }
 
   /// Get all discipline records for a student - Simple action
-  Future<List<DisciplineRecord>> getStudentDisciplineRecords(int studentId) async {
+  Future<List<DisciplineRecord>> getStudentDisciplineRecords(
+    int studentId,
+  ) async {
     try {
       return await _databaseHelper.getStudentDisciplineRecords(studentId);
     } catch (e) {
@@ -53,7 +57,9 @@ class DisciplineService {
   }
 
   /// Get recent discipline cases across all students - Simple action
-  Future<List<DisciplineRecord>> getRecentDisciplineCases({int limit = 50}) async {
+  Future<List<DisciplineRecord>> getRecentDisciplineCases({
+    int limit = 50,
+  }) async {
     try {
       return await _databaseHelper.getRecentDisciplineCases(limit: limit);
     } catch (e) {
@@ -77,7 +83,7 @@ class DisciplineService {
     try {
       final db = await _databaseHelper.database;
       final cutoffDate = DateTime.now().subtract(Duration(days: days));
-      
+
       final result = await db.query(
         'discipline',
         where: 'student_id = ? AND incident_date >= ?',
@@ -92,21 +98,22 @@ class DisciplineService {
   }
 
   /// Get discipline count by severity for a student - Simple action
-  Future<Map<String, int>> getStudentDisciplineCountBySeverity(int studentId) async {
+  Future<Map<String, int>> getStudentDisciplineCountBySeverity(
+    int studentId,
+  ) async {
     try {
       final db = await _databaseHelper.database;
-      final result = await db.rawQuery('''
+      final result = await db.rawQuery(
+        '''
         SELECT severity, COUNT(*) as count
         FROM discipline
         WHERE student_id = ?
         GROUP BY severity
-      ''', [studentId]);
+      ''',
+        [studentId],
+      );
 
-      final counts = <String, int>{
-        'Minor': 0,
-        'Major': 0,
-        'Severe': 0,
-      };
+      final counts = <String, int>{'Minor': 0, 'Major': 0, 'Severe': 0};
 
       for (final row in result) {
         final severity = row['severity'] as String;
@@ -116,7 +123,9 @@ class DisciplineService {
 
       return counts;
     } catch (e) {
-      print('Error in DisciplineService.getStudentDisciplineCountBySeverity: $e');
+      print(
+        'Error in DisciplineService.getStudentDisciplineCountBySeverity: $e',
+      );
       return {'Minor': 0, 'Major': 0, 'Severe': 0};
     }
   }
@@ -136,7 +145,7 @@ class DisciplineService {
         JOIN classes c ON s.class_id = c.class_id
         WHERE d.incident_date BETWEEN ? AND ?
       ''';
-      
+
       List<dynamic> whereArgs = [
         startDate.toIso8601String().split('T')[0],
         endDate.toIso8601String().split('T')[0],
@@ -158,7 +167,11 @@ class DisciplineService {
   }
 
   /// Update discipline case resolution status - Simple action
-  Future<bool> updateDisciplineCaseResolution(int disciplineId, bool resolved, {String? actionTaken}) async {
+  Future<bool> updateDisciplineCaseResolution(
+    int disciplineId,
+    bool resolved, {
+    String? actionTaken,
+  }) async {
     try {
       final db = await _databaseHelper.database;
       final updateData = <String, dynamic>{
@@ -189,7 +202,9 @@ class DisciplineService {
     try {
       final records = await getStudentDisciplineRecords(studentId);
       final totalMarks = await getStudentTotalDisciplineMarks(studentId);
-      final severityCounts = await getStudentDisciplineCountBySeverity(studentId);
+      final severityCounts = await getStudentDisciplineCountBySeverity(
+        studentId,
+      );
       final hasRecent = await hasRecentDisciplineIssues(studentId);
 
       return DisciplineSummary(
@@ -208,9 +223,13 @@ class DisciplineService {
   }
 
   /// Quick discipline actions based on common scenarios
-  
+
   /// Record minor discipline case - Quick action
-  Future<bool> recordMinorCase(int studentId, String reason, String recordedBy) async {
+  Future<bool> recordMinorCase(
+    int studentId,
+    String reason,
+    String recordedBy,
+  ) async {
     return await recordDisciplineCase(
       studentId: studentId,
       reason: reason,
@@ -221,7 +240,12 @@ class DisciplineService {
   }
 
   /// Record major discipline case - Quick action
-  Future<bool> recordMajorCase(int studentId, String reason, String recordedBy, {String? actionTaken}) async {
+  Future<bool> recordMajorCase(
+    int studentId,
+    String reason,
+    String recordedBy, {
+    String? actionTaken,
+  }) async {
     return await recordDisciplineCase(
       studentId: studentId,
       reason: reason,
@@ -233,7 +257,12 @@ class DisciplineService {
   }
 
   /// Record severe discipline case - Quick action
-  Future<bool> recordSevereCase(int studentId, String reason, String recordedBy, String actionTaken) async {
+  Future<bool> recordSevereCase(
+    int studentId,
+    String reason,
+    String recordedBy,
+    String actionTaken,
+  ) async {
     return await recordDisciplineCase(
       studentId: studentId,
       reason: reason,
@@ -248,16 +277,16 @@ class DisciplineService {
   Future<bool> needsAttention(int studentId) async {
     try {
       final summary = await getStudentDisciplineSummary(studentId);
-      
+
       // Student needs attention if:
       // - Has severe cases
       // - Has more than 3 major cases
       // - Has more than 5 minor cases
       // - Has recent issues and total marks > 20
       return summary.severeCases > 0 ||
-             summary.majorCases > 3 ||
-             summary.minorCases > 5 ||
-             (summary.hasRecentIssues && summary.totalMarksDeducted > 20);
+          summary.majorCases > 3 ||
+          summary.minorCases > 5 ||
+          (summary.hasRecentIssues && summary.totalMarksDeducted > 20);
     } catch (e) {
       print('Error in DisciplineService.needsAttention: $e');
       return false;
@@ -268,12 +297,16 @@ class DisciplineService {
   Future<String> getBehaviorRating(int studentId) async {
     try {
       final summary = await getStudentDisciplineSummary(studentId);
-      
+
       if (summary.totalCases == 0) {
         return 'Excellent';
-      } else if (summary.severeCases == 0 && summary.majorCases <= 1 && summary.minorCases <= 2) {
+      } else if (summary.severeCases == 0 &&
+          summary.majorCases <= 1 &&
+          summary.minorCases <= 2) {
         return 'Good';
-      } else if (summary.severeCases == 0 && summary.majorCases <= 3 && summary.minorCases <= 5) {
+      } else if (summary.severeCases == 0 &&
+          summary.majorCases <= 3 &&
+          summary.minorCases <= 5) {
         return 'Fair';
       } else {
         return 'Poor';
