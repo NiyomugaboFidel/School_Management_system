@@ -6,6 +6,7 @@ import 'package:sqlite_crud_app/models/user.dart';
 import 'package:sqlite_crud_app/utils/user_session.dart';
 import 'package:sqlite_crud_app/services/auth_services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:local_auth/local_auth.dart';
 
 // ============================= CLASS LoginScreen =============================
 class LoginScreen extends StatefulWidget {
@@ -20,13 +21,22 @@ class _LoginScreenState extends State<LoginScreen> {
   final _formKey = GlobalKey<FormState>();
   final _usernameController = TextEditingController();
   final _passwordController = TextEditingController();
+  final _phoneController = TextEditingController();
+  final _pinController = TextEditingController();
   final _authService = AuthService();
+  final LocalAuthentication _localAuth = LocalAuthentication();
 
   late UserSession userSession;
   bool _isChecked = true;
   bool _isLoading = false;
-  bool _obscurePassword = true; // Added for password visibility toggle
+  bool _obscurePassword = true;
+  bool _obscurePin = true;
   String? _errorMessage;
+
+  // Authentication method selection
+  AuthMethod _selectedAuthMethod = AuthMethod.usernamePassword;
+  bool _biometricAvailable = false;
+  bool _biometricEnabled = false;
 
   // ============================= INIT STATE =============================
   @override
@@ -35,6 +45,7 @@ class _LoginScreenState extends State<LoginScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       userSession = Provider.of<UserSession>(context, listen: false);
       _loadSavedCredentials();
+      _checkBiometricAvailability();
     });
   }
 
@@ -43,20 +54,111 @@ class _LoginScreenState extends State<LoginScreen> {
   void dispose() {
     _usernameController.dispose();
     _passwordController.dispose();
+    _phoneController.dispose();
+    _pinController.dispose();
     super.dispose();
+  }
+
+  // ============================= CHECK BIOMETRIC AVAILABILITY =============================
+  Future<void> _checkBiometricAvailability() async {
+    try {
+      final canCheckBiometrics = await _localAuth.canCheckBiometrics;
+      final canGetBiometrics = await _localAuth.isDeviceSupported();
+      final availableBiometrics = await _localAuth.getAvailableBiometrics();
+
+      setState(() {
+        _biometricAvailable =
+            canCheckBiometrics &&
+            canGetBiometrics &&
+            availableBiometrics.isNotEmpty;
+      });
+
+      // Check if biometric is enabled in settings
+      final prefs = await SharedPreferences.getInstance();
+      setState(() {
+        _biometricEnabled = prefs.getBool('biometric_enabled') ?? false;
+      });
+    } catch (e) {
+      setState(() {
+        _biometricAvailable = false;
+      });
+    }
   }
 
   // ============================= LOAD SAVED CREDENTIALS =============================
   Future<void> _loadSavedCredentials() async {
     if (_isChecked) {
-      // TODO: Implement loading saved credentials
+      final prefs = await SharedPreferences.getInstance();
+      final savedUsername = prefs.getString('saved_username');
+      final savedPhone = prefs.getString('saved_phone');
+
+      if (savedUsername != null) {
+        _usernameController.text = savedUsername;
+      }
+      if (savedPhone != null) {
+        _phoneController.text = savedPhone;
+      }
     }
   }
 
   // ============================= SAVE CREDENTIALS =============================
   Future<void> _saveCredentials() async {
     if (_isChecked) {
-      // TODO: Implement saving credentials
+      final prefs = await SharedPreferences.getInstance();
+      if (_selectedAuthMethod == AuthMethod.usernamePassword) {
+        await prefs.setString(
+          'saved_username',
+          _usernameController.text.trim(),
+        );
+      } else if (_selectedAuthMethod == AuthMethod.phonePin) {
+        await prefs.setString('saved_phone', _phoneController.text.trim());
+      }
+    }
+  }
+
+  // ============================= HANDLE BIOMETRIC AUTH =============================
+  Future<void> _handleBiometricAuth() async {
+    if (!_biometricAvailable || !_biometricEnabled) {
+      setState(() {
+        _errorMessage = 'Biometric authentication not available or not enabled';
+      });
+      return;
+    }
+
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
+
+    try {
+      final authenticated = await _localAuth.authenticate(
+        localizedReason: 'Authenticate to access the attendance system',
+        options: const AuthenticationOptions(
+          biometricOnly: true,
+          stickyAuth: true,
+        ),
+      );
+
+      if (authenticated) {
+        // For biometric auth, we'll use a default admin user or stored credentials
+        final prefs = await SharedPreferences.getInstance();
+        final savedUsername = prefs.getString('saved_username') ?? 'admin';
+        final savedPassword = prefs.getString('saved_password') ?? 'admin123';
+
+        await _performLogin(savedUsername, savedPassword);
+      } else {
+        setState(() {
+          _errorMessage = 'Biometric authentication failed';
+        });
+      }
+    } catch (e) {
+      setState(() {
+        _errorMessage = 'Biometric authentication error: $e';
+      });
+    } finally {
+      setState(() {
+        _isLoading = false;
+      });
     }
   }
 
@@ -70,8 +172,20 @@ class _LoginScreenState extends State<LoginScreen> {
       return;
     }
 
-    final username = _usernameController.text.trim();
-    final password = _passwordController.text;
+    String username, password;
+
+    if (_selectedAuthMethod == AuthMethod.usernamePassword) {
+      username = _usernameController.text.trim();
+      password = _passwordController.text;
+    } else if (_selectedAuthMethod == AuthMethod.phonePin) {
+      username = _phoneController.text.trim();
+      password = _pinController.text;
+    } else {
+      setState(() {
+        _errorMessage = "Please select an authentication method";
+      });
+      return;
+    }
 
     if (username.isEmpty || password.isEmpty) {
       setState(() {
@@ -80,6 +194,11 @@ class _LoginScreenState extends State<LoginScreen> {
       return;
     }
 
+    await _performLogin(username, password);
+  }
+
+  // ============================= PERFORM LOGIN =============================
+  Future<void> _performLogin(String username, String password) async {
     setState(() {
       _isLoading = true;
     });
@@ -94,9 +213,7 @@ class _LoginScreenState extends State<LoginScreen> {
       }
 
       if (result.success && result.user != null) {
-        if (_isChecked) {
-          await _saveCredentials();
-        }
+        await _saveCredentials();
 
         await userSession.setCurrentUser(result.user!, rememberMe: _isChecked);
 
@@ -128,20 +245,51 @@ class _LoginScreenState extends State<LoginScreen> {
   // ============================= HANDLE WEB LOGIN =============================
   Future<SignInResult> _handleWebLogin(String username, String password) async {
     print("Web login attempt: $username, $password");
-    if (username == "fidele" || password == "1234678") {
-      // Fixed logic error
+
+    // Default users for web testing
+    final defaultUsers = {
+      'admin': {
+        'password': 'admin123',
+        'fullName': 'System Administrator',
+        'email': 'admin@school.com',
+        'role': UserRole.admin,
+      },
+      'teacher': {
+        'password': 'teacher123',
+        'fullName': 'John Teacher',
+        'email': 'teacher@school.com',
+        'role': UserRole.teacher,
+      },
+      'user': {
+        'password': 'user123',
+        'fullName': 'Regular User',
+        'email': 'user@school.com',
+        'role': UserRole.user,
+      },
+      'fidele': {
+        'password': '1234678',
+        'fullName': 'Fidele Niyomugabo',
+        'email': 'fidele@example.com',
+        'role': UserRole.admin,
+      },
+    };
+
+    final userData = defaultUsers[username];
+    if (userData != null && userData['password'] == password) {
       final user = User(
-        id: 1,
-        fullName: "Fidele Niyomugabo",
-        email: "fidele@example.com",
-        username: "fidele",
+        id: defaultUsers.keys.toList().indexOf(username) + 1,
+        fullName: userData['fullName'] as String,
+        email: userData['email'] as String,
+        username: username,
         password: "***",
-        role: UserRole.admin,
+        role: userData['role'] as UserRole,
         lastLogin: DateTime.now(),
       );
       return SignInResult.success(user);
     } else {
-      return SignInResult.failure("Invalid credentials");
+      return SignInResult.failure(
+        "Invalid credentials. Use admin/admin123, teacher/teacher123, user/user123, or fidele/1234678",
+      );
     }
   }
 
@@ -160,51 +308,11 @@ class _LoginScreenState extends State<LoginScreen> {
         ),
         shape: BoxShape.rectangle,
       ),
-      child: Stack(
-        alignment: Alignment.center,
-        children: [
-          // Create the geometric cube effect
-          Transform.translate(
-            offset: const Offset(-2, -2),
-            child: Container(
-              width: 40,
-              height: 40,
-              decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.3),
-                shape: BoxShape.rectangle,
-              ),
-            ),
-          ),
-          Transform.translate(
-            offset: const Offset(2, 2),
-            child: Container(
-              width: 40,
-              height: 40,
-              decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.5),
-                shape: BoxShape.rectangle,
-              ),
-            ),
-          ),
-          Container(
-            width: 40,
-            height: 40,
-            decoration: const BoxDecoration(
-              color: Colors.white,
-              shape: BoxShape.rectangle,
-            ),
-            child: const Icon(
-              Icons.diamond,
-              color: AppColors.primary,
-              size: 24,
-            ),
-          ),
-        ],
-      ),
+      child: const Icon(Icons.school, color: Colors.white, size: 40),
     );
   }
 
-  // ============================= BUILD ERROR MESSAGE WIDGET =============================
+  // ============================= BUILD ERROR MESSAGE =============================
   Widget _buildErrorMessage() {
     if (_errorMessage == null) return const SizedBox.shrink();
 
@@ -231,12 +339,200 @@ class _LoginScreenState extends State<LoginScreen> {
     );
   }
 
+  // ============================= BUILD AUTH METHOD SELECTOR =============================
+  Widget _buildAuthMethodSelector() {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.grey.shade200),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Login Method',
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w600,
+              color: AppColors.textDark,
+            ),
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(
+                child: _buildAuthMethodOption(
+                  AuthMethod.usernamePassword,
+                  Icons.person_outline,
+                  'Username',
+                  'Use username and password',
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: _buildAuthMethodOption(
+                  AuthMethod.phonePin,
+                  Icons.phone_outlined,
+                  'Phone',
+                  'Use phone and PIN',
+                ),
+              ),
+            ],
+          ),
+          if (_biometricAvailable && _biometricEnabled) ...[
+            const SizedBox(height: 12),
+            _buildAuthMethodOption(
+              AuthMethod.biometric,
+              Icons.fingerprint,
+              'Biometric',
+              'Use fingerprint or face ID',
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildAuthMethodOption(
+    AuthMethod method,
+    IconData icon,
+    String title,
+    String subtitle,
+  ) {
+    final isSelected = _selectedAuthMethod == method;
+    return GestureDetector(
+      onTap: () {
+        setState(() {
+          _selectedAuthMethod = method;
+        });
+      },
+      child: Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color:
+              isSelected
+                  ? AppColors.primary.withOpacity(0.1)
+                  : Colors.grey.shade50,
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(
+            color: isSelected ? AppColors.primary : Colors.grey.shade200,
+            width: isSelected ? 2 : 1,
+          ),
+        ),
+        child: Column(
+          children: [
+            Icon(
+              icon,
+              color: isSelected ? AppColors.primary : Colors.grey.shade600,
+              size: 24,
+            ),
+            const SizedBox(height: 4),
+            Text(
+              title,
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                color: isSelected ? AppColors.primary : Colors.grey.shade700,
+              ),
+            ),
+            Text(
+              subtitle,
+              style: TextStyle(fontSize: 10, color: Colors.grey.shade500),
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ============================= BUILD INPUT FIELDS =============================
+  Widget _buildInputFields() {
+    if (_selectedAuthMethod == AuthMethod.biometric) {
+      return const SizedBox.shrink();
+    }
+
+    return Column(
+      children: [
+        if (_selectedAuthMethod == AuthMethod.usernamePassword) ...[
+          _buildModernInputField(
+            hint: 'Username',
+            controller: _usernameController,
+            icon: Icons.person_outline,
+            validator: (value) {
+              if (value == null || value.trim().isEmpty) {
+                return 'Please enter your username';
+              }
+              return null;
+            },
+          ),
+          const SizedBox(height: 16),
+          _buildModernInputField(
+            hint: 'Password',
+            controller: _passwordController,
+            icon: Icons.lock_outline,
+            isPassword: true,
+            validator: (value) {
+              if (value == null || value.isEmpty) {
+                return 'Please enter your password';
+              }
+              return null;
+            },
+            onFieldSubmitted: (_) => _handleLogin(),
+          ),
+        ] else if (_selectedAuthMethod == AuthMethod.phonePin) ...[
+          _buildModernInputField(
+            hint: 'Phone Number',
+            controller: _phoneController,
+            icon: Icons.phone_outlined,
+            keyboardType: TextInputType.phone,
+            validator: (value) {
+              if (value == null || value.trim().isEmpty) {
+                return 'Please enter your phone number';
+              }
+              return null;
+            },
+          ),
+          const SizedBox(height: 16),
+          _buildModernInputField(
+            hint: 'PIN (4-6 digits)',
+            controller: _pinController,
+            icon: Icons.pin_outlined,
+            isPassword: true,
+            keyboardType: TextInputType.number,
+            validator: (value) {
+              if (value == null || value.isEmpty) {
+                return 'Please enter your PIN';
+              }
+              if (value.length < 4 || value.length > 6) {
+                return 'PIN must be 4-6 digits';
+              }
+              return null;
+            },
+            onFieldSubmitted: (_) => _handleLogin(),
+          ),
+        ],
+      ],
+    );
+  }
+
   // ============================= BUILD MODERN INPUT FIELD =============================
   Widget _buildModernInputField({
     required String hint,
     required TextEditingController controller,
     required IconData icon,
     bool isPassword = false,
+    TextInputType? keyboardType,
     String? Function(String?)? validator,
     void Function(String)? onFieldSubmitted,
   }) {
@@ -250,7 +546,12 @@ class _LoginScreenState extends State<LoginScreen> {
       child: TextFormField(
         controller: controller,
         obscureText:
-            isPassword ? _obscurePassword : false, // Fixed to use state
+            isPassword
+                ? (isPassword == _obscurePassword
+                    ? _obscurePassword
+                    : _obscurePin)
+                : false,
+        keyboardType: keyboardType,
         validator: validator,
         enabled: !_isLoading,
         onFieldSubmitted: onFieldSubmitted,
@@ -263,15 +564,20 @@ class _LoginScreenState extends State<LoginScreen> {
               isPassword
                   ? IconButton(
                     icon: Icon(
-                      _obscurePassword
+                      (isPassword == _obscurePassword
+                              ? _obscurePassword
+                              : _obscurePin)
                           ? Icons.visibility_off
-                          : Icons.visibility, // Fixed icon
+                          : Icons.visibility,
                       color: Colors.grey.shade500,
                     ),
                     onPressed: () {
                       setState(() {
-                        _obscurePassword =
-                            !_obscurePassword; // Toggle visibility
+                        if (isPassword == _obscurePassword) {
+                          _obscurePassword = !_obscurePassword;
+                        } else {
+                          _obscurePin = !_obscurePin;
+                        }
                       });
                     },
                   )
@@ -293,16 +599,38 @@ class _LoginScreenState extends State<LoginScreen> {
       margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
       width: double.infinity,
       height: 56,
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors:
+              _isLoading
+                  ? [Colors.grey.shade300, Colors.grey.shade400]
+                  : [AppColors.primary, AppColors.primary.withOpacity(0.8)],
+        ),
+        borderRadius: BorderRadius.circular(12),
+        boxShadow:
+            _isLoading
+                ? null
+                : [
+                  BoxShadow(
+                    color: AppColors.primary.withOpacity(0.3),
+                    blurRadius: 8,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
+      ),
       child: ElevatedButton(
-        onPressed: _isLoading ? null : _handleLogin,
+        onPressed:
+            _isLoading
+                ? null
+                : (_selectedAuthMethod == AuthMethod.biometric
+                    ? _handleBiometricAuth
+                    : _handleLogin),
         style: ElevatedButton.styleFrom(
-          backgroundColor: AppColors.primary,
-          foregroundColor: Colors.white,
-          elevation: 0,
+          backgroundColor: Colors.transparent,
+          shadowColor: Colors.transparent,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(12),
           ),
-          disabledBackgroundColor: Colors.grey.shade300,
         ),
         child:
             _isLoading
@@ -314,9 +642,28 @@ class _LoginScreenState extends State<LoginScreen> {
                     valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
                   ),
                 )
-                : const Text(
-                  'Login',
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                : Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(
+                      _selectedAuthMethod == AuthMethod.biometric
+                          ? Icons.fingerprint
+                          : Icons.login,
+                      color: Colors.white,
+                      size: 24,
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      _selectedAuthMethod == AuthMethod.biometric
+                          ? 'Authenticate'
+                          : 'Login',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 18,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
                 ),
       ),
     );
@@ -335,7 +682,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     ? null
                     : (value) {
                       setState(() {
-                        _isChecked = true;
+                        _isChecked = value ?? true;
                       });
                     },
             activeColor: AppColors.primary,
@@ -359,13 +706,11 @@ class _LoginScreenState extends State<LoginScreen> {
             ),
           ),
           const Spacer(),
-          // Forgot Password
           TextButton(
             onPressed:
                 _isLoading
                     ? null
                     : () {
-                      // Handle forgot password
                       ScaffoldMessenger.of(context).showSnackBar(
                         const SnackBar(
                           content: Text('Forgot password feature coming soon!'),
@@ -437,7 +782,7 @@ class _LoginScreenState extends State<LoginScreen> {
                           ),
                         ),
                         TextSpan(
-                          text: 'HR Attendee',
+                          text: 'Gate Attendance',
                           style: TextStyle(
                             fontSize: 28,
                             fontWeight: FontWeight.bold,
@@ -452,42 +797,23 @@ class _LoginScreenState extends State<LoginScreen> {
 
                   // Description
                   Text(
-                    'Hello there, login to continue',
+                    'Fast and secure gate-based attendance system',
                     style: TextStyle(fontSize: 16, color: Colors.grey.shade600),
                   ),
 
-                  const SizedBox(height: 50),
+                  const SizedBox(height: 40),
 
-                  // Username Input
-                  _buildModernInputField(
-                    hint: 'Username',
-                    controller: _usernameController,
-                    icon: Icons.person_outline,
-                    validator: (value) {
-                      if (value == null || value.trim().isEmpty) {
-                        return 'Please enter your username';
-                      }
-                      return null;
-                    },
-                  ),
+                  // Auth Method Selector
+                  _buildAuthMethodSelector(),
 
-                  // Password Input
-                  _buildModernInputField(
-                    hint: 'Password',
-                    controller: _passwordController,
-                    icon: Icons.lock_outline,
-                    isPassword: true,
-                    validator: (value) {
-                      if (value == null || value.isEmpty) {
-                        return 'Please enter your password';
-                      }
-                      return null;
-                    },
-                    onFieldSubmitted: (_) => _handleLogin(),
-                  ),
+                  const SizedBox(height: 20),
+
+                  // Input Fields
+                  _buildInputFields(),
 
                   // Remember Me & Forgot Password
-                  _buildRememberMeCheckbox(),
+                  if (_selectedAuthMethod != AuthMethod.biometric)
+                    _buildRememberMeCheckbox(),
 
                   const SizedBox(height: 20),
 
@@ -504,10 +830,10 @@ class _LoginScreenState extends State<LoginScreen> {
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       Text(
-                        "Didn't have an account? ",
+                        'Don\'t have an account? ',
                         style: TextStyle(
-                          color: Colors.grey.shade700,
-                          fontSize: 16,
+                          fontSize: 14,
+                          color: Colors.grey.shade600,
                         ),
                       ),
                       TextButton(
@@ -518,10 +844,10 @@ class _LoginScreenState extends State<LoginScreen> {
                                   Navigator.pushNamed(context, '/signup');
                                 },
                         child: const Text(
-                          'Register',
+                          'Sign Up',
                           style: TextStyle(
                             color: AppColors.primary,
-                            fontSize: 16,
+                            fontSize: 14,
                             fontWeight: FontWeight.w600,
                           ),
                         ),
@@ -538,4 +864,17 @@ class _LoginScreenState extends State<LoginScreen> {
       ),
     );
   }
+
+  String _getGreeting(int hour) {
+    if (hour < 12) {
+      return 'Good Morning';
+    } else if (hour < 17) {
+      return 'Good Afternoon';
+    } else {
+      return 'Good Evening';
+    }
+  }
 }
+
+// ============================= ENUM AUTH METHOD =============================
+enum AuthMethod { usernamePassword, phonePin, biometric }

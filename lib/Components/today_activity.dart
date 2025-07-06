@@ -43,7 +43,7 @@ class TodayActivity extends StatelessWidget {
         Container(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            color: AppColors.cardBackground,
+            color: AppColors.scaffoldWithBoxBackground,
             borderRadius: BorderRadius.circular(12),
             boxShadow: [
               BoxShadow(

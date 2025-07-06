@@ -3,7 +3,7 @@ import 'package:provider/provider.dart';
 import 'package:sqlite_crud_app/Views/home/screens/home.dart';
 import 'package:sqlite_crud_app/Views/profile/screens/profile.dart';
 import 'package:sqlite_crud_app/constants/app_colors.dart';
-import 'package:sqlite_crud_app/Views/async/screens/async_screen.dart';
+import 'package:sqlite_crud_app/Views/attendance/screens/attendance_scan_screen.dart';
 import 'package:sqlite_crud_app/Views/recent/recent_records_screen.dart';
 
 class NavigationMenu extends StatelessWidget {
@@ -17,7 +17,7 @@ class NavigationMenu extends StatelessWidget {
       body: navigationController.screens[navigationController.selectedIndex],
       bottomNavigationBar: NavigationBarTheme(
         data: NavigationBarThemeData(
-          backgroundColor: const Color.fromARGB(254, 21, 144, 252),
+          backgroundColor: AppColors.primary,
 
           indicatorColor: AppColors.white.withOpacity(0.2),
           labelTextStyle: MaterialStateProperty.resolveWith<TextStyle>((
@@ -51,7 +51,10 @@ class NavigationMenu extends StatelessWidget {
             navigationController.setSelectedIndex(index);
           },
           destinations: const [
-            NavigationDestination(icon: Icon(Icons.home), label: 'Home'),
+            NavigationDestination(
+              icon: Icon(Icons.dashboard),
+              label: 'Activities',
+            ),
             NavigationDestination(icon: Icon(Icons.history), label: 'Recent'),
             NavigationDestination(icon: Icon(Icons.cloud), label: 'Async'),
             NavigationDestination(icon: Icon(Icons.person_2), label: 'Profile'),
@@ -77,7 +80,7 @@ class NavigationController extends ChangeNotifier {
   final List<Widget> screens = [
     HomeScreen(),
     RecentRecordsScreen(),
-    AsyncScreen(),
+    AttendanceScanScreen(),
     ProfileScreen(),
   ];
 }

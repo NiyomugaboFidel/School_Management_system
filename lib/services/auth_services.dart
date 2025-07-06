@@ -1,5 +1,6 @@
 import 'package:sqlite_crud_app/SQLite/database_helper.dart';
 import 'package:sqlite_crud_app/models/attendance.dart';
+import 'package:sqlite_crud_app/models/attendance_result.dart';
 import 'package:sqlite_crud_app/models/student.dart';
 
 import '../models/user.dart';
@@ -385,7 +386,6 @@ class StudentService {
     }
   }
 
-
   // ============================= GET STUDENTS BY CLASS =============================
   Future<List<Student>> getStudentsByClass(int classId) async {
     try {
@@ -406,28 +406,28 @@ class AttendanceService {
   final DatabaseHelper _dbHelper = DatabaseHelper();
 
   // ============================= MARK ATTENDANCE =============================
-  Future<bool> markAttendance(
+  Future<AttendanceResult> markAttendance(
     int studentId,
     String status,
     String markedBy, {
     String? notes,
   }) async {
     try {
-      final success = await _dbHelper.markAttendance(
+      final result = await _dbHelper.markAttendance(
         studentId,
         status,
         markedBy,
         notes: notes,
       );
-      DatabaseLogger.logDatabaseOperation('MarkAttendance', success);
-      return success;
+      DatabaseLogger.logDatabaseOperation('MarkAttendance', result.isSuccess);
+      return result;
     } catch (e) {
       DatabaseLogger.logDatabaseOperation(
         'MarkAttendance',
         false,
         e.toString(),
       );
-      return false;
+      return AttendanceResult.failure(e.toString());
     }
   }
 

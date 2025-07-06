@@ -1,10 +1,20 @@
 import 'package:flutter/material.dart';
-import 'package:sqlite_crud_app/SQLite/database_helper.dart';
-import 'package:sqlite_crud_app/constants/app_colors.dart';
-import 'package:sqlite_crud_app/Views/home/screens/add_student_card_screen.dart';
+import 'package:provider/provider.dart';
+import 'package:intl/intl.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import '../../../constants/app_colors.dart';
+import '../../../SQLite/database_helper.dart';
+import '../../../utils/user_session.dart';
+import '../../../services/sync_service.dart';
+import '../../../models/attendance.dart';
+import 'add_student_card_screen.dart';
+import 'attendance_screen.dart';
+import 'payment_screen.dart';
+import 'discipline_screen.dart';
+import '../../attendance/screens/attendance_scan_screen.dart';
 
 class DashboardScreen extends StatefulWidget {
-  const DashboardScreen({Key? key}) : super(key: key);
+  const DashboardScreen({super.key});
 
   @override
   State<DashboardScreen> createState() => _DashboardScreenState();
@@ -12,26 +22,28 @@ class DashboardScreen extends StatefulWidget {
 
 class _DashboardScreenState extends State<DashboardScreen>
     with TickerProviderStateMixin {
-  int totalStudents = 0;
-  int presentToday = 0;
-  int lateToday = 0;
-  int absentToday = 0;
-  bool isLoading = true;
-
   late AnimationController _animationController;
   late Animation<double> _fadeAnimation;
-  late Animation<Offset> _slideAnimation;
+
+  final DatabaseHelper _dbHelper = DatabaseHelper();
+  final SyncService _syncService = SyncService();
+
+  // Statistics data
+  int totalStudents = 0;
+  int totalClasses = 0;
+  int presentToday = 0;
+  int absentToday = 0;
+  int lateToday = 0;
+  bool isLoading = true;
+  bool isSyncing = false;
+  String syncStatus = 'Checking sync status...';
+  DateTime? lastSyncTime;
 
   @override
   void initState() {
     super.initState();
-    _setupAnimations();
-    _loadStats();
-  }
-
-  void _setupAnimations() {
     _animationController = AnimationController(
-      duration: const Duration(milliseconds: 1200),
+      duration: const Duration(milliseconds: 800),
       vsync: this,
     );
 
@@ -39,12 +51,9 @@ class _DashboardScreenState extends State<DashboardScreen>
       CurvedAnimation(parent: _animationController, curve: Curves.easeInOut),
     );
 
-    _slideAnimation = Tween<Offset>(
-      begin: const Offset(0, 0.3),
-      end: Offset.zero,
-    ).animate(
-      CurvedAnimation(parent: _animationController, curve: Curves.easeOutCubic),
-    );
+    _loadDashboardData();
+    _checkSyncStatus();
+    _animationController.forward();
   }
 
   @override
@@ -53,346 +62,255 @@ class _DashboardScreenState extends State<DashboardScreen>
     super.dispose();
   }
 
-  Future<void> _loadStats() async {
-    setState(() => isLoading = true);
+  Future<void> _loadDashboardData() async {
     try {
-      final students = await DatabaseHelper().getAllStudents();
-      final attendance = await DatabaseHelper().getTodayAttendance();
+      // Load basic statistics
+      final students = await _dbHelper.getAllStudents();
+      final classes = await _dbHelper.getAllClasses();
+      final todayAttendance = await _dbHelper.getTodayAttendance();
 
-      totalStudents = students.length;
-      presentToday =
-          attendance.where((a) => a.status.value == 'Present').length;
-      lateToday = attendance.where((a) => a.status.value == 'Late').length;
-      absentToday = attendance.where((a) => a.status.value == 'Absent').length;
+      // Calculate attendance statistics
+      int present = 0, absent = 0, late = 0;
+      for (final attendance in todayAttendance) {
+        switch (attendance.status) {
+          case AttendanceStatus.present:
+            present++;
+            break;
+          case AttendanceStatus.absent:
+            absent++;
+            break;
+          case AttendanceStatus.late:
+            late++;
+            break;
+          case AttendanceStatus.excused:
+            // Count as present for statistics
+            present++;
+            break;
+        }
+      }
 
-      _animationController.forward();
+      setState(() {
+        totalStudents = students.length;
+        totalClasses = classes.length;
+        presentToday = present;
+        absentToday = absent;
+        lateToday = late;
+        isLoading = false;
+      });
     } catch (e) {
-      debugPrint('Error loading dashboard stats: $e');
-    } finally {
-      setState(() => isLoading = false);
+      print('Error loading dashboard data: $e');
+      setState(() {
+        isLoading = false;
+      });
     }
   }
 
-  void _openAddStudentCardScreen() {
-    Navigator.of(context).push(
-      PageRouteBuilder(
-        pageBuilder:
-            (context, animation, secondaryAnimation) => AddStudentCardScreen(),
-        transitionsBuilder: (context, animation, secondaryAnimation, child) {
-          return SlideTransition(
-            position: animation.drive(
-              Tween(
-                begin: const Offset(1.0, 0.0),
-                end: Offset.zero,
-              ).chain(CurveTween(curve: Curves.easeInOut)),
-            ),
-            child: child,
-          );
-        },
-      ),
-    );
+  Future<void> _checkSyncStatus() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final lastSync = prefs.getString('last_sync_time');
+
+      if (lastSync != null) {
+        lastSyncTime = DateTime.parse(lastSync);
+        setState(() {
+          syncStatus = 'Last sync: ${_formatDateTime(lastSyncTime!)}';
+        });
+      } else {
+        setState(() {
+          syncStatus = 'No sync data available';
+        });
+      }
+    } catch (e) {
+      setState(() {
+        syncStatus = 'Sync status unavailable';
+      });
+    }
+  }
+
+  Future<void> _performSync() async {
+    setState(() {
+      isSyncing = true;
+    });
+
+    try {
+      await _syncService.syncAllData();
+
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('last_sync_time', DateTime.now().toIso8601String());
+
+      setState(() {
+        lastSyncTime = DateTime.now();
+        syncStatus = 'Last sync: Just now';
+        isSyncing = false;
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Data synced successfully!'),
+          backgroundColor: AppColors.success,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    } catch (e) {
+      setState(() {
+        isSyncing = false;
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Sync failed: $e'),
+          backgroundColor: Colors.red,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
+  }
+
+  String _formatDateTime(DateTime dateTime) {
+    final now = DateTime.now();
+    final difference = now.difference(dateTime);
+
+    if (difference.inDays > 0) {
+      return '${difference.inDays} days ago';
+    } else if (difference.inHours > 0) {
+      return '${difference.inHours} hours ago';
+    } else if (difference.inMinutes > 0) {
+      return '${difference.inMinutes} minutes ago';
+    } else {
+      return 'Just now';
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    final size = MediaQuery.of(context).size;
-    final isTablet = size.width > 600;
+    final userSession = Provider.of<UserSession>(context);
+    final isDarkMode = Theme.of(context).brightness == Brightness.dark;
 
-    if (isLoading) {
-      return Container(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [AppColors.primary.withOpacity(0.05), Colors.white],
-          ),
-        ),
-        child: const Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              CircularProgressIndicator(
-                strokeWidth: 3,
-                valueColor: AlwaysStoppedAnimation<Color>(AppColors.primary),
-              ),
-              SizedBox(height: 16),
-              Text(
-                'Loading dashboard...',
-                style: TextStyle(color: AppColors.textDark, fontSize: 16),
-              ),
-            ],
-          ),
-        ),
-      );
-    }
+    return Scaffold(
+      backgroundColor:
+          isDarkMode
+              ? AppColors.scaffoldBackgroundDark
+              : AppColors.scaffoldBackground,
+      body: RefreshIndicator(
+        onRefresh: _loadDashboardData,
+        child: CustomScrollView(
+          slivers: [
+            // Dashboard Content
+            SliverToBoxAdapter(
+              child: FadeTransition(
+                opacity: _fadeAnimation,
+                child: Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Welcome Section
+                      _buildWelcomeSection(userSession),
+                      const SizedBox(height: 24),
 
-    return Container(
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [AppColors.primary.withOpacity(0.05), Colors.white],
-        ),
-      ),
-      child: RefreshIndicator(
-        onRefresh: _loadStats,
-        color: AppColors.primary,
-        child: SingleChildScrollView(
-          physics: const AlwaysScrollableScrollPhysics(),
-          padding: EdgeInsets.all(isTablet ? 32 : 20),
-          child: FadeTransition(
-            opacity: _fadeAnimation,
-            child: SlideTransition(
-              position: _slideAnimation,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _buildHeader(),
-                  SizedBox(height: isTablet ? 32 : 24),
-                  _buildStatsGrid(isTablet),
-                  SizedBox(height: isTablet ? 48 : 32),
-                  _buildQuickActions(),
-                  const SizedBox(height: 16),
-                  _buildAttendanceSummary(),
-                ],
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
+                      // Today's Attendance Summary
+                      _buildTodayAttendanceSection(),
+                      const SizedBox(height: 24),
 
-  Widget _buildHeader() {
-    final now = DateTime.now();
-    final formattedDate = '${_getMonthName(now.month)} ${now.day}, ${now.year}';
+                      // Statistics Cards
+                      _buildStatisticsSection(),
+                      const SizedBox(height: 24),
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Text(
-          'Dashboard Overview',
-          style: TextStyle(
-            fontSize: 20,
-            fontWeight: FontWeight.bold,
-            color: AppColors.primary,
-            letterSpacing: -0.5,
-          ),
-        ),
-        const SizedBox(height: 8),
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-          decoration: BoxDecoration(
-            color: AppColors.primary.withOpacity(0.1),
-            borderRadius: BorderRadius.circular(20),
-          ),
-          child: Text(
-            formattedDate,
-            style: TextStyle(
-              fontSize: 14,
-              color: AppColors.primary.withOpacity(0.8),
-              fontWeight: FontWeight.w500,
-            ),
-          ),
-        ),
-      ],
-    );
-  }
+                      // Quick Actions
+                      _buildQuickActionsSection(),
+                      const SizedBox(height: 24),
 
-  Widget _buildStatsGrid(bool isTablet) {
-    final stats = [
-      StatData(
-        'Total Students',
-        totalStudents,
-        Icons.groups_rounded,
-        AppColors.primary,
-      ),
-      StatData(
-        'Present',
-        presentToday,
-        Icons.check_circle_rounded,
-        AppColors.success,
-      ),
-      StatData('Late', lateToday, Icons.schedule_rounded, AppColors.warning),
-      StatData('Absent', absentToday, Icons.cancel_rounded, AppColors.error),
-    ];
-
-    if (isTablet) {
-      return Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children:
-            stats
-                .map(
-                  (stat) => Expanded(
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 16),
-                      child: _buildEnhancedStatCard(stat),
-                    ),
+                      // Sync Status
+                      _buildSyncStatusSection(),
+                    ],
                   ),
-                )
-                .toList(),
-      );
-    }
-
-    return Column(
-      children: [
-        Row(
-          children: [
-            Expanded(child: _buildEnhancedStatCard(stats[0])),
-            const SizedBox(width: 16),
-            Expanded(child: _buildEnhancedStatCard(stats[1])),
+                ),
+              ),
+            ),
           ],
         ),
-        const SizedBox(height: 16),
-        Row(
-          children: [
-            Expanded(child: _buildEnhancedStatCard(stats[2])),
-            const SizedBox(width: 16),
-            Expanded(child: _buildEnhancedStatCard(stats[3])),
-          ],
-        ),
-      ],
+      ),
     );
   }
 
-  Widget _buildEnhancedStatCard(StatData stat) {
+  Widget _buildWelcomeSection(UserSession userSession) {
+    final currentTime = DateTime.now();
+    final greeting = _getGreeting(currentTime.hour);
+
     return Container(
-      height: 140,
+      padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        gradient: LinearGradient(
+        gradient: const LinearGradient(
+          colors: [AppColors.primary500, AppColors.primary600],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [Colors.white, stat.color.withOpacity(0.05)],
         ),
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: stat.color.withOpacity(0.1),
-            blurRadius: 20,
-            offset: const Offset(0, 8),
+            color: AppColors.primary500.withOpacity(0.3),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
           ),
         ],
-        border: Border.all(color: stat.color.withOpacity(0.1), width: 1),
       ),
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          borderRadius: BorderRadius.circular(20),
-          onTap: () {
-            // Add navigation or action here
-          },
-          child: Padding(
-            padding: const EdgeInsets.all(5),
+      child: Row(
+        children: [
+          CircleAvatar(
+            radius: 30,
+            backgroundColor: AppColors.white.withOpacity(0.2),
+            child: Icon(Icons.person, size: 35, color: AppColors.white),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
             child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Container(
-                  padding: const EdgeInsets.all(6),
-                  decoration: BoxDecoration(
-                    color: stat.color.withOpacity(0.15),
-                    borderRadius: BorderRadius.circular(16),
+                Text(
+                  greeting,
+                  style: const TextStyle(
+                    color: AppColors.white,
+                    fontSize: 18,
+                    fontWeight: FontWeight.w500,
                   ),
-                  child: Icon(stat.icon, color: stat.color, size: 24),
-                ),
-                const SizedBox(height: 12),
-                TweenAnimationBuilder<int>(
-                  tween: IntTween(begin: 0, end: stat.value),
-                  duration: const Duration(milliseconds: 1000),
-                  builder: (context, value, child) {
-                    return Text(
-                      value.toString(),
-                      style: TextStyle(
-                        fontSize: 28,
-                        fontWeight: FontWeight.bold,
-                        color: stat.color,
-                      ),
-                    );
-                  },
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  stat.title,
+                  userSession.currentUser?.fullName ?? 'User',
                   style: const TextStyle(
-                    fontSize: 13,
-                    color: AppColors.textDark,
-                    fontWeight: FontWeight.w500,
+                    color: AppColors.white,
+                    fontSize: 24,
+                    fontWeight: FontWeight.bold,
                   ),
-                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'Role: ${userSession.currentUser?.role.value ?? 'User'}',
+                  style: TextStyle(
+                    color: AppColors.white.withOpacity(0.8),
+                    fontSize: 14,
+                  ),
                 ),
               ],
             ),
           ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildQuickActions() {
-    return Container(
-      padding: const EdgeInsets.all(24),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 20,
-            offset: const Offset(0, 5),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text(
-            'Quick Actions',
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-              color: AppColors.textDark,
-            ),
-          ),
-          const SizedBox(height: 16),
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton.icon(
-              onPressed: _openAddStudentCardScreen,
-              icon: const Icon(Icons.nfc_rounded, size: 20),
-              label: const Text('Add Student Card'),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.primary,
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(vertical: 16),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                elevation: 0,
-                textStyle: const TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ),
-          ),
+          Icon(Icons.school, color: AppColors.white.withOpacity(0.8), size: 40),
         ],
       ),
     );
   }
 
-  Widget _buildAttendanceSummary() {
-    final total = presentToday + lateToday + absentToday;
-    final attendanceRate = total > 0 ? (presentToday / total * 100).round() : 0;
-
+  Widget _buildTodayAttendanceSection() {
     return Container(
-      padding: const EdgeInsets.all(24),
+      padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withOpacity(0.05),
-            blurRadius: 20,
-            offset: const Offset(0, 5),
+            blurRadius: 10,
+            offset: const Offset(0, 2),
           ),
         ],
       ),
@@ -401,8 +319,10 @@ class _DashboardScreenState extends State<DashboardScreen>
         children: [
           Row(
             children: [
+              Icon(Icons.today, color: AppColors.primary, size: 24),
+              const SizedBox(width: 12),
               const Text(
-                'Today\'s Attendance',
+                "Today's Attendance",
                 style: TextStyle(
                   fontSize: 18,
                   fontWeight: FontWeight.bold,
@@ -410,44 +330,65 @@ class _DashboardScreenState extends State<DashboardScreen>
                 ),
               ),
               const Spacer(),
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 6,
+              Text(
+                DateFormat('EEEE, MMM d').format(DateTime.now()),
+                style: TextStyle(fontSize: 14, color: Colors.grey.shade600),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              Expanded(
+                child: _buildAttendanceStatCard(
+                  'Present',
+                  presentToday.toString(),
+                  AppColors.success,
+                  Icons.check_circle,
                 ),
-                decoration: BoxDecoration(
-                  color: AppColors.success.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(12),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: _buildAttendanceStatCard(
+                  'Late',
+                  lateToday.toString(),
+                  AppColors.warning,
+                  Icons.access_time,
                 ),
-                child: Text(
-                  '$attendanceRate%',
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.bold,
-                    color: AppColors.success,
-                  ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: _buildAttendanceStatCard(
+                  'Absent',
+                  absentToday.toString(),
+                  AppColors.error,
+                  Icons.cancel,
                 ),
               ),
             ],
           ),
           const SizedBox(height: 16),
-          ClipRRect(
-            borderRadius: BorderRadius.circular(8),
-            child: LinearProgressIndicator(
-              value: total > 0 ? presentToday / total : 0,
-              backgroundColor: Colors.grey.withOpacity(0.2),
-              valueColor: AlwaysStoppedAnimation<Color>(AppColors.success),
-              minHeight: 8,
-            ),
-          ),
-          const SizedBox(height: 12),
-          Text(
-            total > 0
-                ? '$presentToday out of $total students are present today'
-                : 'No attendance data for today',
-            style: TextStyle(
-              fontSize: 14,
-              color: AppColors.textDark.withOpacity(0.7),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton.icon(
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const AttendanceScanScreen(),
+                  ),
+                );
+              },
+              icon: const Icon(Icons.qr_code_scanner),
+              label: const Text('Start Attendance'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.primary,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(vertical: 16),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
             ),
           ),
         ],
@@ -455,30 +396,344 @@ class _DashboardScreenState extends State<DashboardScreen>
     );
   }
 
-  String _getMonthName(int month) {
-    const months = [
-      'January',
-      'February',
-      'March',
-      'April',
-      'May',
-      'June',
-      'July',
-      'August',
-      'September',
-      'October',
-      'November',
-      'December',
-    ];
-    return months[month - 1];
+  Widget _buildAttendanceStatCard(
+    String label,
+    String count,
+    Color color,
+    IconData icon,
+  ) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: color.withOpacity(0.3)),
+      ),
+      child: Column(
+        children: [
+          Icon(icon, color: color, size: 24),
+          const SizedBox(height: 8),
+          Text(
+            count,
+            style: TextStyle(
+              fontSize: 24,
+              fontWeight: FontWeight.bold,
+              color: color,
+            ),
+          ),
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+              color: color,
+            ),
+          ),
+        ],
+      ),
+    );
   }
-}
 
-class StatData {
-  final String title;
-  final int value;
-  final IconData icon;
-  final Color color;
+  Widget _buildStatisticsSection() {
+    if (isLoading) {
+      return const Center(child: CircularProgressIndicator());
+    }
 
-  StatData(this.title, this.value, this.icon, this.color);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'School Statistics',
+          style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+        ),
+        const SizedBox(height: 16),
+        GridView.count(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          crossAxisCount: 2,
+          crossAxisSpacing: 16,
+          mainAxisSpacing: 16,
+          childAspectRatio: 1.5,
+          children: [
+            _buildStatCard(
+              'Total Students',
+              totalStudents.toString(),
+              Icons.people,
+              AppColors.primary,
+            ),
+            _buildStatCard(
+              'Total Classes',
+              totalClasses.toString(),
+              Icons.class_,
+              AppColors.info,
+            ),
+            _buildStatCard(
+              'Attendance Rate',
+              totalStudents > 0
+                  ? '${((presentToday / totalStudents) * 100).toStringAsFixed(1)}%'
+                  : '0%',
+              Icons.analytics,
+              AppColors.success,
+            ),
+            _buildStatCard(
+              'Today\'s Date',
+              DateFormat('MMM d').format(DateTime.now()),
+              Icons.calendar_today,
+              AppColors.warning,
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _buildStatCard(
+    String title,
+    String value,
+    IconData icon,
+    Color color,
+  ) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(icon, color: color, size: 24),
+              const Spacer(),
+              Icon(Icons.trending_up, color: color.withOpacity(0.5), size: 16),
+            ],
+          ),
+          const Spacer(),
+          Text(
+            value,
+            style: TextStyle(
+              fontSize: 24,
+              fontWeight: FontWeight.bold,
+              color: color,
+            ),
+          ),
+          Text(
+            title,
+            style: TextStyle(
+              fontSize: 12,
+              color: Colors.grey.shade600,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildQuickActionsSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'Quick Actions',
+          style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+        ),
+        const SizedBox(height: 16),
+        Row(
+          children: [
+            Expanded(
+              child: _buildActionCard(
+                'Scan QR',
+                Icons.qr_code_scanner,
+                AppColors.primary500,
+                () => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const AttendanceScanScreen(),
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: _buildActionCard(
+                'Add Student',
+                Icons.person_add,
+                AppColors.secondary500,
+                () => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const AddStudentCardScreen(),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        Row(
+          children: [
+            Expanded(
+              child: _buildActionCard(
+                'View History',
+                Icons.history,
+                AppColors.tertiary500,
+                () {
+                  // Navigate to calendar/history view
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Calendar view coming soon!'),
+                      backgroundColor: AppColors.primary,
+                    ),
+                  );
+                },
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: _buildActionCard(
+                'Settings',
+                Icons.settings,
+                AppColors.info,
+                () {
+                  // Navigate to settings
+                  Navigator.pushNamed(context, '/settings');
+                },
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _buildActionCard(
+    String title,
+    IconData icon,
+    Color color,
+    VoidCallback onTap,
+  ) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.05),
+              blurRadius: 8,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Column(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: color.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Icon(icon, color: color, size: 24),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              title,
+              style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSyncStatusSection() {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(
+                isSyncing ? Icons.sync : Icons.cloud_sync,
+                color: isSyncing ? AppColors.warning : AppColors.primary,
+                size: 24,
+              ),
+              const SizedBox(width: 12),
+              const Text(
+                'Sync Status',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: AppColors.textDark,
+                ),
+              ),
+              const Spacer(),
+              if (isSyncing)
+                const SizedBox(
+                  width: 20,
+                  height: 20,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Text(
+            syncStatus,
+            style: TextStyle(fontSize: 14, color: Colors.grey.shade600),
+          ),
+          const SizedBox(height: 16),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton.icon(
+              onPressed: isSyncing ? null : _performSync,
+              icon: Icon(isSyncing ? Icons.sync : Icons.sync_alt),
+              label: Text(isSyncing ? 'Syncing...' : 'Sync Now'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.primary,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _getGreeting(int hour) {
+    if (hour < 12) {
+      return 'Good Morning';
+    } else if (hour < 17) {
+      return 'Good Afternoon';
+    } else {
+      return 'Good Evening';
+    }
+  }
 }

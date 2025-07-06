@@ -113,11 +113,12 @@ class _AttendanceScreenState extends State<AttendanceScreen>
 
   Future<void> _markAttendance(Student student, String status) async {
     try {
-      final success = await DatabaseHelper().markAttendance(
+      final result = await DatabaseHelper().markAttendance(
         student.studentId,
         status,
         'CurrentUser',
       );
+      final bool success = result == true;
       if (success) {
         // Reload all attendance logs for today
         allTodayAttendance = await DatabaseHelper().getTodayAttendance();
@@ -158,7 +159,7 @@ class _AttendanceScreenState extends State<AttendanceScreen>
     return Column(
       children: [
         Container(
-          color: AppColors.cardBackground,
+          color: AppColors.scaffoldWithBoxBackground,
           child: TabBar(
             controller: _tabController,
             labelColor: AppColors.primary,

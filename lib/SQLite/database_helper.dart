@@ -13,11 +13,12 @@ import '../models/student.dart';
 import '../models/level.dart';
 import '../models/class.dart';
 import '../models/attendance.dart';
+import '../models/attendance_result.dart';
 import '../models/payment.dart';
 import '../models/discipline.dart';
 
 /// Database Helper for School Management System
-/// Handles all database operations including user authentication, 
+/// Handles all database operations including user authentication,
 /// student management, attendance tracking, and payments
 class DatabaseHelper {
   static final DatabaseHelper _instance = DatabaseHelper._internal();
@@ -267,24 +268,48 @@ class DatabaseHelper {
   /// Create indexes for better performance
   void _createIndexes(Batch batch) {
     // Students indexes
-    batch.execute('CREATE INDEX idx_students_class_id ON $_tableStudents(class_id)');
-    batch.execute('CREATE INDEX idx_students_reg_number ON $_tableStudents(reg_number)');
-    batch.execute('CREATE INDEX idx_students_barcode ON $_tableStudents(barcode)');
-    batch.execute('CREATE INDEX idx_students_nfc_tag_id ON $_tableStudents(nfc_tag_id)');
-    
+    batch.execute(
+      'CREATE INDEX idx_students_class_id ON $_tableStudents(class_id)',
+    );
+    batch.execute(
+      'CREATE INDEX idx_students_reg_number ON $_tableStudents(reg_number)',
+    );
+    batch.execute(
+      'CREATE INDEX idx_students_barcode ON $_tableStudents(barcode)',
+    );
+    batch.execute(
+      'CREATE INDEX idx_students_nfc_tag_id ON $_tableStudents(nfc_tag_id)',
+    );
+
     // Attendance indexes
-    batch.execute('CREATE INDEX idx_attendance_student_id ON $_tableAttendance(student_id)');
-    batch.execute('CREATE INDEX idx_attendance_date ON $_tableAttendance(date)');
-    batch.execute('CREATE INDEX idx_attendance_synced ON $_tableAttendance(synced)');
-    
+    batch.execute(
+      'CREATE INDEX idx_attendance_student_id ON $_tableAttendance(student_id)',
+    );
+    batch.execute(
+      'CREATE INDEX idx_attendance_date ON $_tableAttendance(date)',
+    );
+    batch.execute(
+      'CREATE INDEX idx_attendance_synced ON $_tableAttendance(synced)',
+    );
+
     // Payments indexes
-    batch.execute('CREATE INDEX idx_payments_student_id ON $_tablePayments(student_id)');
-    batch.execute('CREATE INDEX idx_payments_date ON $_tablePayments(date_paid)');
-    batch.execute('CREATE INDEX idx_payments_synced ON $_tablePayments(synced)');
-    
+    batch.execute(
+      'CREATE INDEX idx_payments_student_id ON $_tablePayments(student_id)',
+    );
+    batch.execute(
+      'CREATE INDEX idx_payments_date ON $_tablePayments(date_paid)',
+    );
+    batch.execute(
+      'CREATE INDEX idx_payments_synced ON $_tablePayments(synced)',
+    );
+
     // Classes indexes
-    batch.execute('CREATE INDEX idx_classes_level_id ON $_tableClasses(level_id)');
-    batch.execute('CREATE INDEX idx_classes_active ON $_tableClasses(is_active)');
+    batch.execute(
+      'CREATE INDEX idx_classes_level_id ON $_tableClasses(level_id)',
+    );
+    batch.execute(
+      'CREATE INDEX idx_classes_active ON $_tableClasses(is_active)',
+    );
   }
 
   /// Insert initial test data
@@ -292,16 +317,8 @@ class DatabaseHelper {
     final batch = db.batch();
     final now = DateTime.now().toIso8601String();
 
-    // Insert default admin user
-    batch.insert(_tableUsers, {
-      'full_name': 'System Administrator',
-      'email': 'admin@school.com',
-      'usr_name': 'admin',
-      'usr_password': _hashPassword('admin123'),
-      'role': 'admin',
-      'created_at': now,
-      'updated_at': now,
-    });
+    // Insert default users for testing
+    await _insertDefaultUsers(batch, now);
 
     // Insert levels
     final levels = ['L3', 'L4', 'L5'];
@@ -317,17 +334,69 @@ class DatabaseHelper {
     // Insert classes
     await _insertClasses(batch, levels, now);
     await batch.commit(noResult: true);
-    
+
     // Insert test students
     await _insertTestStudents(db);
   }
 
+  /// Insert default users for testing
+  Future<void> _insertDefaultUsers(Batch batch, String now) async {
+    final defaultUsers = [
+      {
+        'full_name': 'System Administrator',
+        'email': 'admin@school.com',
+        'usr_name': 'admin',
+        'usr_password': _hashPassword('admin123'),
+        'role': 'admin',
+        'created_at': now,
+        'updated_at': now,
+      },
+      {
+        'full_name': 'John Teacher',
+        'email': 'teacher@school.com',
+        'usr_name': 'teacher',
+        'usr_password': _hashPassword('teacher123'),
+        'role': 'teacher',
+        'created_at': now,
+        'updated_at': now,
+      },
+      {
+        'full_name': 'Regular User',
+        'email': 'user@school.com',
+        'usr_name': 'user',
+        'usr_password': _hashPassword('user123'),
+        'role': 'user',
+        'created_at': now,
+        'updated_at': now,
+      },
+      {
+        'full_name': 'Fidele Niyomugabo',
+        'email': 'fidele@example.com',
+        'usr_name': 'fidele',
+        'usr_password': _hashPassword('1234678'),
+        'role': 'admin',
+        'created_at': now,
+        'updated_at': now,
+      },
+    ];
+
+    for (final user in defaultUsers) {
+      batch.insert(_tableUsers, user);
+    }
+
+    print('Default users inserted successfully');
+  }
+
   /// Insert classes for each level and section
-  Future<void> _insertClasses(Batch batch, List<String> levels, String now) async {
+  Future<void> _insertClasses(
+    Batch batch,
+    List<String> levels,
+    String now,
+  ) async {
     final sections = ['SOD', 'NET', 'MTD'];
     final subsections = ['A', 'B'];
     int classId = 1;
-    
+
     for (int levelId = 1; levelId <= 3; levelId++) {
       for (String section in sections) {
         for (String subsection in subsections) {
@@ -350,14 +419,43 @@ class DatabaseHelper {
   /// Insert test students with sample data
   Future<void> _insertTestStudents(Database db) async {
     final random = Random();
-    final firstNames = ['John', 'Jane', 'Alice', 'Bob', 'Charlie', 'Diana', 'Eve', 'Frank', 'Grace', 'Henry'];
-    final lastNames = ['Smith', 'Johnson', 'Brown', 'Davis', 'Wilson', 'Miller', 'Taylor', 'Anderson', 'Thomas', 'Jackson'];
+    final firstNames = [
+      'John',
+      'Jane',
+      'Alice',
+      'Bob',
+      'Charlie',
+      'Diana',
+      'Eve',
+      'Frank',
+      'Grace',
+      'Henry',
+    ];
+    final lastNames = [
+      'Smith',
+      'Johnson',
+      'Brown',
+      'Davis',
+      'Wilson',
+      'Miller',
+      'Taylor',
+      'Anderson',
+      'Thomas',
+      'Jackson',
+    ];
     final now = DateTime.now().toIso8601String();
 
     for (int i = 1; i <= 10; i++) {
       final studentId = 20240000 + i;
-      final student = _createTestStudent(i, studentId, firstNames, lastNames, random, now);
-      
+      final student = _createTestStudent(
+        i,
+        studentId,
+        firstNames,
+        lastNames,
+        random,
+        now,
+      );
+
       await db.insert(_tableStudents, student);
       await _updateClassStudentCount(db, student['class_id'], now);
       await _insertSampleAttendance(db, studentId);
@@ -366,8 +464,14 @@ class DatabaseHelper {
   }
 
   /// Create a test student record
-  Map<String, dynamic> _createTestStudent(int index, int studentId, List<String> firstNames, 
-      List<String> lastNames, Random random, String now) {
+  Map<String, dynamic> _createTestStudent(
+    int index,
+    int studentId,
+    List<String> firstNames,
+    List<String> lastNames,
+    Random random,
+    String now,
+  ) {
     final firstName = firstNames[index - 1];
     final lastName = lastNames[random.nextInt(lastNames.length)];
     final classId = random.nextInt(18) + 1;
@@ -386,23 +490,30 @@ class DatabaseHelper {
   }
 
   /// Update class student count
-  Future<void> _updateClassStudentCount(Database db, int classId, String now) async {
-    await db.rawUpdate('''
+  Future<void> _updateClassStudentCount(
+    Database db,
+    int classId,
+    String now,
+  ) async {
+    await db.rawUpdate(
+      '''
       UPDATE $_tableClasses 
       SET student_count = student_count + 1, updated_at = ?
       WHERE class_id = ?
-    ''', [now, classId]);
+    ''',
+      [now, classId],
+    );
   }
 
   /// Insert sample attendance records
   Future<void> _insertSampleAttendance(Database db, int studentId) async {
     final random = Random();
     final statuses = ['Present', 'Absent', 'Late', 'Present', 'Present'];
-    
+
     for (int i = 1; i <= 5; i++) {
       final date = DateTime.now().subtract(Duration(days: i));
       final status = statuses[random.nextInt(statuses.length)];
-      
+
       await db.insert(_tableAttendance, {
         'student_id': studentId,
         'date': date.toIso8601String().split('T')[0],
@@ -419,12 +530,12 @@ class DatabaseHelper {
   Future<void> _insertSamplePayments(Database db, int studentId) async {
     final random = Random();
     final paymentTypes = ['Tuition', 'Transport', 'Meals', 'Books'];
-    
+
     for (int i = 1; i <= 2; i++) {
       final paymentDate = DateTime.now().subtract(Duration(days: i * 15));
       final amount = (random.nextInt(5) + 1) * 50000.0;
       final paymentType = paymentTypes[random.nextInt(paymentTypes.length)];
-      
+
       await db.insert(_tablePayments, {
         'student_id': studentId,
         'amount': amount,
@@ -593,7 +704,11 @@ class DatabaseHelper {
   }
 
   /// Change user password
-  Future<bool> changePassword(int userId, String oldPassword, String newPassword) async {
+  Future<bool> changePassword(
+    int userId,
+    String oldPassword,
+    String newPassword,
+  ) async {
     if (newPassword.length < 6) return false;
 
     try {
@@ -632,10 +747,7 @@ class DatabaseHelper {
       final db = await database;
       final result = await db.update(
         _tableUsers,
-        {
-          'is_active': 0,
-          'updated_at': DateTime.now().toIso8601String(),
-        },
+        {'is_active': 0, 'updated_at': DateTime.now().toIso8601String()},
         where: 'usr_id = ?',
         whereArgs: [userId],
       );
@@ -704,13 +816,16 @@ class DatabaseHelper {
   Future<Student?> getStudentByBarcode(String barcode) async {
     try {
       final db = await database;
-      final result = await db.rawQuery('''
+      final result = await db.rawQuery(
+        '''
         SELECT s.*, c.name as class_name, l.name as level_name
         FROM $_tableStudents s
         JOIN $_tableClasses c ON s.class_id = c.class_id
         JOIN $_tableLevels l ON c.level_id = l.level_id
         WHERE s.barcode = ? AND s.is_active = 1
-      ''', [barcode]);
+      ''',
+        [barcode],
+      );
 
       return result.isNotEmpty ? Student.fromMap(result.first) : null;
     } catch (e) {
@@ -723,13 +838,16 @@ class DatabaseHelper {
   Future<Student?> getStudentByNFC(String nfcTagId) async {
     try {
       final db = await database;
-      final result = await db.rawQuery('''
+      final result = await db.rawQuery(
+        '''
         SELECT s.*, c.name as class_name, l.name as level_name
         FROM $_tableStudents s
         JOIN $_tableClasses c ON s.class_id = c.class_id
         JOIN $_tableLevels l ON c.level_id = l.level_id
         WHERE s.nfc_tag_id = ? AND s.is_active = 1
-      ''', [nfcTagId]);
+      ''',
+        [nfcTagId],
+      );
 
       return result.isNotEmpty ? Student.fromMap(result.first) : null;
     } catch (e) {
@@ -738,17 +856,20 @@ class DatabaseHelper {
     }
   }
 
-    /// Get student by NFC tag ID
+  /// Get student by NFC tag ID
   Future<Student?> getStudentById(String studentId) async {
     try {
       final db = await database;
-      final result = await db.rawQuery('''
+      final result = await db.rawQuery(
+        '''
         SELECT s.*, c.name as class_name, l.name as level_name
         FROM $_tableStudents s
         JOIN $_tableClasses c ON s.class_id = c.class_id
         JOIN $_tableLevels l ON c.level_id = l.level_id
         WHERE s.student_id = ? AND s.is_active = 1
-      ''', [studentId]);
+      ''',
+        [studentId],
+      );
 
       return result.isNotEmpty ? Student.fromMap(result.first) : null;
     } catch (e) {
@@ -759,12 +880,19 @@ class DatabaseHelper {
 
   // ============================= ATTENDANCE METHODS =============================
 
-  /// Mark attendance for a student
-  Future<bool> markAttendance(int studentId, String status, String markedBy, {String? notes}) async {
+  /// Mark attendance for a student with duplicate detection and time-based status
+  Future<AttendanceResult> markAttendance(
+    int studentId,
+    String status,
+    String markedBy, {
+    String? notes,
+    DateTime? checkInTime,
+  }) async {
     try {
       final db = await database;
       final today = DateTime.now().toIso8601String().split('T')[0];
-      final now = DateTime.now().toIso8601String();
+      final now = checkInTime ?? DateTime.now();
+      final nowString = now.toIso8601String();
 
       // Check if attendance already marked today
       final existing = await db.query(
@@ -774,20 +902,40 @@ class DatabaseHelper {
       );
 
       if (existing.isNotEmpty) {
-        // Update existing record
+        final existingRecord = AttendanceLog.fromMap(existing.first);
+        final existingTime = existingRecord.markedAt;
+
+        // If existing record is newer, don't update
+        if (existingTime.isAfter(now)) {
+          return AttendanceResult.duplicate(
+            existingStatus: existingRecord.status.toString(),
+            existingTime: existingTime,
+            newStatus: status,
+            newTime: now,
+          );
+        }
+
+        // Update existing record with newer time
         final result = await db.update(
           _tableAttendance,
           {
             'status': status,
             'marked_by': markedBy,
-            'marked_at': now,
+            'marked_at': nowString,
             'notes': notes,
             'synced': 0,
           },
           where: 'student_id = ? AND date = ?',
           whereArgs: [studentId, today],
         );
-        return result > 0;
+
+        return result > 0
+            ? AttendanceResult.updated(
+              previousStatus: existingRecord.status.value,
+              newStatus: status,
+              time: now,
+            )
+            : AttendanceResult.failure('Failed to update attendance');
       } else {
         // Insert new record
         final result = await db.insert(_tableAttendance, {
@@ -795,16 +943,19 @@ class DatabaseHelper {
           'date': today,
           'status': status,
           'marked_by': markedBy,
-          'marked_at': now,
+          'marked_at': nowString,
           'notes': notes,
           'synced': 0,
-          'created_at': now,
+          'created_at': nowString,
         });
-        return result > 0;
+
+        return result > 0
+            ? AttendanceResult.success(status: status, time: now)
+            : AttendanceResult.failure('Failed to mark attendance');
       }
     } catch (e) {
       print('Error marking attendance: $e');
-      return false;
+      return AttendanceResult.failure('Error marking attendance: $e');
     }
   }
 
@@ -813,15 +964,18 @@ class DatabaseHelper {
     try {
       final db = await database;
       final today = DateTime.now().toIso8601String().split('T')[0];
-      
-      final result = await db.rawQuery('''
+
+      final result = await db.rawQuery(
+        '''
         SELECT a.*, s.full_name, s.reg_number, c.name as class_name
         FROM $_tableAttendance a
         JOIN $_tableStudents s ON a.student_id = s.student_id
         JOIN $_tableClasses c ON s.class_id = c.class_id
         WHERE a.date = ?
         ORDER BY a.marked_at DESC
-      ''', [today]);
+      ''',
+        [today],
+      );
 
       return result.map((map) => AttendanceLog.fromMap(map)).toList();
     } catch (e) {
@@ -830,11 +984,42 @@ class DatabaseHelper {
     }
   }
 
+  /// Get attendance records for a specific date
+  Future<List<AttendanceLog>> getAttendanceForDate(DateTime date) async {
+    try {
+      final db = await database;
+      final dateString = date.toIso8601String().split('T')[0];
+
+      final result = await db.rawQuery(
+        '''
+        SELECT a.*, s.full_name, s.reg_number, c.name as class_name
+        FROM $_tableAttendance a
+        JOIN $_tableStudents s ON a.student_id = s.student_id
+        JOIN $_tableClasses c ON s.class_id = c.class_id
+        WHERE a.date = ?
+        ORDER BY a.marked_at DESC
+      ''',
+        [dateString],
+      );
+
+      return result.map((map) => AttendanceLog.fromMap(map)).toList();
+    } catch (e) {
+      print('Error getting attendance for date: $e');
+      return [];
+    }
+  }
+
   // ============================= PAYMENT METHODS =============================
 
   /// Record a payment
-  Future<bool> recordPayment(int studentId, double amount, String paymentType, 
-      String paymentMethod, {String? receiptNumber, String? parentReason}) async {
+  Future<bool> recordPayment(
+    int studentId,
+    double amount,
+    String paymentType,
+    String paymentMethod, {
+    String? receiptNumber,
+    String? parentReason,
+  }) async {
     try {
       final db = await database;
       final today = DateTime.now().toIso8601String().split('T')[0];
@@ -880,14 +1065,17 @@ class DatabaseHelper {
   Future<List<Payment>> getRecentPayments({int limit = 50}) async {
     try {
       final db = await database;
-      final result = await db.rawQuery('''
+      final result = await db.rawQuery(
+        '''
         SELECT p.*, s.full_name, s.reg_number, c.name as class_name
         FROM $_tablePayments p
         JOIN $_tableStudents s ON p.student_id = s.student_id
         JOIN $_tableClasses c ON s.class_id = c.class_id
         ORDER BY p.created_at DESC
         LIMIT ?
-      ''', [limit]);
+      ''',
+        [limit],
+      );
 
       return result.map((map) => Payment.fromMap(map)).toList();
     } catch (e) {
@@ -900,11 +1088,14 @@ class DatabaseHelper {
   Future<double> getStudentTotalPayments(int studentId) async {
     try {
       final db = await database;
-      final result = await db.rawQuery('''
+      final result = await db.rawQuery(
+        '''
         SELECT SUM(amount) as total
         FROM $_tablePayments
         WHERE student_id = ?
-      ''', [studentId]);
+      ''',
+        [studentId],
+      );
 
       if (result.isNotEmpty && result.first['total'] != null) {
         return (result.first['total'] as num).toDouble();
@@ -954,7 +1145,9 @@ class DatabaseHelper {
   }
 
   /// Get student discipline records
-  Future<List<DisciplineRecord>> getStudentDisciplineRecords(int studentId) async {
+  Future<List<DisciplineRecord>> getStudentDisciplineRecords(
+    int studentId,
+  ) async {
     try {
       final db = await database;
       final result = await db.query(
@@ -972,17 +1165,22 @@ class DatabaseHelper {
   }
 
   /// Get recent discipline cases
-  Future<List<DisciplineRecord>> getRecentDisciplineCases({int limit = 50}) async {
+  Future<List<DisciplineRecord>> getRecentDisciplineCases({
+    int limit = 50,
+  }) async {
     try {
       final db = await database;
-      final result = await db.rawQuery('''
+      final result = await db.rawQuery(
+        '''
         SELECT d.*, s.full_name, s.reg_number, c.name as class_name
         FROM $_tableDiscipline d
         JOIN $_tableStudents s ON d.student_id = s.student_id
         JOIN $_tableClasses c ON s.class_id = c.class_id
         ORDER BY d.created_at DESC
         LIMIT ?
-      ''', [limit]);
+      ''',
+        [limit],
+      );
 
       return result.map((map) => DisciplineRecord.fromMap(map)).toList();
     } catch (e) {
@@ -995,11 +1193,14 @@ class DatabaseHelper {
   Future<int> getStudentTotalDisciplineMarks(int studentId) async {
     try {
       final db = await database;
-      final result = await db.rawQuery('''
+      final result = await db.rawQuery(
+        '''
         SELECT SUM(marks_deducted) as total
         FROM $_tableDiscipline
         WHERE student_id = ?
-      ''', [studentId]);
+      ''',
+        [studentId],
+      );
 
       if (result.isNotEmpty && result.first['total'] != null) {
         return (result.first['total'] as num).toInt();
@@ -1017,10 +1218,7 @@ class DatabaseHelper {
   Future<List<Level>> getAllLevels() async {
     try {
       final db = await database;
-      final result = await db.query(
-        _tableLevels,
-        orderBy: 'name',
-      );
+      final result = await db.query(_tableLevels, orderBy: 'name');
 
       return result.map((map) => Level.fromMap(map)).toList();
     } catch (e) {
@@ -1052,13 +1250,16 @@ class DatabaseHelper {
   Future<List<SchoolClass>> getClassesByLevel(int levelId) async {
     try {
       final db = await database;
-      final result = await db.rawQuery('''
+      final result = await db.rawQuery(
+        '''
         SELECT c.*, l.name as level_name
         FROM $_tableClasses c
         JOIN $_tableLevels l ON c.level_id = l.level_id
         WHERE c.level_id = ? AND c.is_active = 1
         ORDER BY c.name
-      ''', [levelId]);
+      ''',
+        [levelId],
+      );
 
       return result.map((map) => SchoolClass.fromMap(map)).toList();
     } catch (e) {
@@ -1071,14 +1272,17 @@ class DatabaseHelper {
   Future<List<Student>> getStudentsByClass(int classId) async {
     try {
       final db = await database;
-      final result = await db.rawQuery('''
+      final result = await db.rawQuery(
+        '''
         SELECT s.*, c.name as class_name, l.name as level_name
         FROM $_tableStudents s
         JOIN $_tableClasses c ON s.class_id = c.class_id
         JOIN $_tableLevels l ON c.level_id = l.level_id
         WHERE s.class_id = ? AND s.is_active = 1
         ORDER BY s.full_name
-      ''', [classId]);
+      ''',
+        [classId],
+      );
 
       return result.map((map) => Student.fromMap(map)).toList();
     } catch (e) {
@@ -1090,12 +1294,16 @@ class DatabaseHelper {
   // ============================= STATISTICS METHODS =============================
 
   /// Calculate and update student statistics
-  Future<bool> updateStudentStatistics(int studentId, String academicYear) async {
+  Future<bool> updateStudentStatistics(
+    int studentId,
+    String academicYear,
+  ) async {
     try {
       final db = await database;
 
       // Get attendance statistics
-      final attendanceStats = await db.rawQuery('''
+      final attendanceStats = await db.rawQuery(
+        '''
         SELECT 
           COUNT(*) as total_records,
           SUM(CASE WHEN status = 'Present' THEN 1 ELSE 0 END) as present_count,
@@ -1104,16 +1312,21 @@ class DatabaseHelper {
           SUM(CASE WHEN status = 'Excused' THEN 1 ELSE 0 END) as excused_count
         FROM $_tableAttendance
         WHERE student_id = ?
-      ''', [studentId]);
+      ''',
+        [studentId],
+      );
 
       // Get discipline statistics
-      final disciplineStats = await db.rawQuery('''
+      final disciplineStats = await db.rawQuery(
+        '''
         SELECT 
           COUNT(*) as discipline_cases,
           SUM(marks_deducted) as total_marks_deducted
         FROM $_tableDiscipline
         WHERE student_id = ?
-      ''', [studentId]);
+      ''',
+        [studentId],
+      );
 
       if (attendanceStats.isNotEmpty && disciplineStats.isNotEmpty) {
         final attendanceData = attendanceStats.first;
@@ -1124,24 +1337,42 @@ class DatabaseHelper {
         final absentCount = (attendanceData['absent_count'] as num).toInt();
         final lateCount = (attendanceData['late_count'] as num).toInt();
         final excusedCount = (attendanceData['excused_count'] as num).toInt();
-        final disciplineCases = (disciplineData['discipline_cases'] as num).toInt();
-        final totalMarksDeducted = (disciplineData['total_marks_deducted'] as num?)?.toInt() ?? 0;
+        final disciplineCases =
+            (disciplineData['discipline_cases'] as num).toInt();
+        final totalMarksDeducted =
+            (disciplineData['total_marks_deducted'] as num?)?.toInt() ?? 0;
 
-        final attendancePercentage = totalDays > 0 ? (presentCount / totalDays) * 100 : 0.0;
-        final behaviorRating = _calculateBehaviorRating(disciplineCases, totalMarksDeducted);
+        final attendancePercentage =
+            totalDays > 0 ? (presentCount / totalDays) * 100 : 0.0;
+        final behaviorRating = _calculateBehaviorRating(
+          disciplineCases,
+          totalMarksDeducted,
+        );
 
         // Insert or update statistics
-        await db.rawQuery('''
+        await db.rawQuery(
+          '''
           INSERT OR REPLACE INTO $_tableStatistics (
             student_id, academic_year, total_school_days, present_count, absent_count,
             late_count, excused_count, discipline_cases, total_discipline_marks_deducted,
             attendance_percentage, behavior_rating, last_calculated
           ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        ''', [
-          studentId, academicYear, totalDays, presentCount, absentCount,
-          lateCount, excusedCount, disciplineCases, totalMarksDeducted,
-          attendancePercentage, behaviorRating, DateTime.now().toIso8601String()
-        ]);
+        ''',
+          [
+            studentId,
+            academicYear,
+            totalDays,
+            presentCount,
+            absentCount,
+            lateCount,
+            excusedCount,
+            disciplineCases,
+            totalMarksDeducted,
+            attendancePercentage,
+            behaviorRating,
+            DateTime.now().toIso8601String(),
+          ],
+        );
 
         return true;
       }
@@ -1166,7 +1397,10 @@ class DatabaseHelper {
   }
 
   /// Get student statistics
-  Future<Map<String, dynamic>?> getStudentStatistics(int studentId, String academicYear) async {
+  Future<Map<String, dynamic>?> getStudentStatistics(
+    int studentId,
+    String academicYear,
+  ) async {
     try {
       final db = await database;
       final result = await db.query(
@@ -1185,7 +1419,11 @@ class DatabaseHelper {
   // ============================= HOLIDAY METHODS =============================
 
   /// Add holiday
-  Future<bool> addHoliday(String date, String reason, {String holidayType = 'Public'}) async {
+  Future<bool> addHoliday(
+    String date,
+    String reason, {
+    String holidayType = 'Public',
+  }) async {
     try {
       final db = await database;
       final result = await db.insert(_tableHolidays, {
@@ -1245,8 +1483,9 @@ class DatabaseHelper {
     try {
       final db = await database;
       final searchTerm = '%${query.trim()}%';
-      
-      final result = await db.rawQuery('''
+
+      final result = await db.rawQuery(
+        '''
         SELECT s.*, c.name as class_name, l.name as level_name
         FROM $_tableStudents s
         JOIN $_tableClasses c ON s.class_id = c.class_id
@@ -1254,7 +1493,9 @@ class DatabaseHelper {
         WHERE (s.full_name LIKE ? OR s.reg_number LIKE ?) AND s.is_active = 1
         ORDER BY s.full_name
         LIMIT 20
-      ''', [searchTerm, searchTerm]);
+      ''',
+        [searchTerm, searchTerm],
+      );
 
       return result.map((map) => Student.fromMap(map)).toList();
     } catch (e) {
@@ -1272,8 +1513,14 @@ class DatabaseHelper {
       final backup = <String, List<Map<String, dynamic>>>{};
 
       final tables = [
-        _tableUsers, _tableLevels, _tableClasses, _tableStudents,
-        _tableAttendance, _tablePayments, _tableDiscipline, _tableHolidays
+        _tableUsers,
+        _tableLevels,
+        _tableClasses,
+        _tableStudents,
+        _tableAttendance,
+        _tablePayments,
+        _tableDiscipline,
+        _tableHolidays,
       ];
 
       for (String table in tables) {
@@ -1333,9 +1580,121 @@ class DatabaseHelper {
         await file.delete();
       }
       return true;
-      return true;
     } catch (e) {
       print('Error deleting database: $e');
+      return false;
+    }
+  }
+
+  // ============================= SYNC METHODS =============================
+
+  /// Get unsynced attendance records
+  Future<List<AttendanceLog>> getUnsyncedAttendance() async {
+    try {
+      final db = await database;
+      final result = await db.query(
+        _tableAttendance,
+        where: 'synced = 0',
+        orderBy: 'marked_at DESC',
+      );
+
+      return result.map((map) => AttendanceLog.fromMap(map)).toList();
+    } catch (e) {
+      print('Error getting unsynced attendance: $e');
+      return [];
+    }
+  }
+
+  /// Update attendance sync status
+  Future<bool> updateAttendanceSyncStatus(int id, bool synced) async {
+    try {
+      final db = await database;
+      final result = await db.update(
+        _tableAttendance,
+        {
+          'synced': synced ? 1 : 0,
+          'updated_at': DateTime.now().toIso8601String(),
+        },
+        where: 'id = ?',
+        whereArgs: [id],
+      );
+      return result > 0;
+    } catch (e) {
+      print('Error updating attendance sync status: $e');
+      return false;
+    }
+  }
+
+  /// Get unsynced payments
+  Future<List<Payment>> getUnsyncedPayments() async {
+    try {
+      final db = await database;
+      final result = await db.query(
+        _tablePayments,
+        where: 'synced = 0',
+        orderBy: 'date_paid DESC',
+      );
+
+      return result.map((map) => Payment.fromMap(map)).toList();
+    } catch (e) {
+      print('Error getting unsynced payments: $e');
+      return [];
+    }
+  }
+
+  /// Update payment sync status
+  Future<bool> updatePaymentSyncStatus(int id, bool synced) async {
+    try {
+      final db = await database;
+      final result = await db.update(
+        _tablePayments,
+        {
+          'synced': synced ? 1 : 0,
+          'updated_at': DateTime.now().toIso8601String(),
+        },
+        where: 'id = ?',
+        whereArgs: [id],
+      );
+      return result > 0;
+    } catch (e) {
+      print('Error updating payment sync status: $e');
+      return false;
+    }
+  }
+
+  /// Get unsynced discipline records
+  Future<List<DisciplineRecord>> getUnsyncedDiscipline() async {
+    try {
+      final db = await database;
+      final result = await db.query(
+        _tableDiscipline,
+        where: 'synced = 0',
+        orderBy: 'incident_date DESC',
+      );
+
+      return result.map((map) => DisciplineRecord.fromMap(map)).toList();
+    } catch (e) {
+      print('Error getting unsynced discipline: $e');
+      return [];
+    }
+  }
+
+  /// Update discipline sync status
+  Future<bool> updateDisciplineSyncStatus(int id, bool synced) async {
+    try {
+      final db = await database;
+      final result = await db.update(
+        _tableDiscipline,
+        {
+          'synced': synced ? 1 : 0,
+          'updated_at': DateTime.now().toIso8601String(),
+        },
+        where: 'id = ?',
+        whereArgs: [id],
+      );
+      return result > 0;
+    } catch (e) {
+      print('Error updating discipline sync status: $e');
       return false;
     }
   }
@@ -1352,7 +1711,8 @@ class AuthResult {
   AuthResult._(this.success, this.message, this.user);
 
   factory AuthResult.success(User user) => AuthResult._(true, null, user);
-  factory AuthResult.failure(String message) => AuthResult._(false, message, null);
+  factory AuthResult.failure(String message) =>
+      AuthResult._(false, message, null);
 }
 
 /// Create user result class
@@ -1363,8 +1723,10 @@ class CreateUserResult {
 
   CreateUserResult._(this.success, this.message, this.user);
 
-  factory CreateUserResult.success(User user) => CreateUserResult._(true, null, user);
-  factory CreateUserResult.failure(String message) => CreateUserResult._(false, message, null);
+  factory CreateUserResult.success(User user) =>
+      CreateUserResult._(true, null, user);
+  factory CreateUserResult.failure(String message) =>
+      CreateUserResult._(false, message, null);
 }
 
 /// Database exception class

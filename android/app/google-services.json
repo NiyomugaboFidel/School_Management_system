@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "865833824680",
+    "project_id": "xtap-570bb",
+    "storage_bucket": "xtap-570bb.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:865833824680:android:7c1bb4f34e941387c7ad9d",
+        "android_client_info": {
+          "package_name": "com.example.sqlite_crud_app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDjmcABEw_3MwgvUKFSVzBKOyfGggUzd40"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

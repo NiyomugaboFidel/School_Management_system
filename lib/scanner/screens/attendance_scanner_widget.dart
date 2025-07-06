@@ -154,9 +154,9 @@ class _AttendanceScannerWidgetState extends State<AttendanceScannerWidget>
         widget.currentUserName,
       );
       print(
-        '[DEBUG] Attendance mark result: ${success ? 'SUCCESS' : 'FAILURE'}',
+        '[DEBUG] Attendance mark result: ${success == true ? 'SUCCESS' : 'FAILURE'}',
       );
-      if (success) {
+      if (success == true) {
         _showSuccessDialog(student, attendanceStatus, scanResult.type);
         await _loadTodayAttendance();
         HapticFeedback.heavyImpact();
@@ -237,7 +237,7 @@ class _AttendanceScannerWidgetState extends State<AttendanceScannerWidget>
       int successCount = 0;
       for (final student in unmarkedStudents) {
         const status = 'Absent';
-        final success = await DatabaseHelper().markAttendance(
+        final result = await DatabaseHelper().markAttendance(
           student.studentId,
           // AttendanceStatus.absent.name,
           // widget.currentUserName,
@@ -245,7 +245,8 @@ class _AttendanceScannerWidgetState extends State<AttendanceScannerWidget>
           status,
           'CurrentUser',
         );
-        if (success) successCount++;
+        if (result == true || (result is bool && result == true))
+          successCount++;
       }
       _showSuccessSnackBar('$successCount students marked as absent');
       await _loadTodayAttendance();
@@ -343,7 +344,7 @@ class _AttendanceScannerWidgetState extends State<AttendanceScannerWidget>
                 Container(
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
-                    color: AppColors.cardBackground,
+                    color: AppColors.scaffoldBackground,
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: Row(
@@ -577,7 +578,7 @@ class _AttendanceScannerWidgetState extends State<AttendanceScannerWidget>
         ],
       ),
       child: Material(
-        color: AppColors.cardBackground,
+        color: AppColors.scaffoldBackground,
         borderRadius: BorderRadius.circular(16),
         child: InkWell(
           onTap: onTap,
@@ -746,7 +747,7 @@ class _AttendanceScannerWidgetState extends State<AttendanceScannerWidget>
       margin: const EdgeInsets.all(16),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: AppColors.cardBackground,
+        color: AppColors.scaffoldBackground,
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(

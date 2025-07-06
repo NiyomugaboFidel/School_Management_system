@@ -10,8 +10,7 @@ import 'package:flutter/rendering.dart';
 import 'package:permission_handler/permission_handler.dart'
     as permission_handler;
 
-import 'web_download_helper.dart'
-    if (dart.library.html) 'web_download_helper_web.dart';
+import 'download_helper.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:sqlite_crud_app/services/nfc_service.dart';
 
@@ -331,7 +330,7 @@ class _AddStudentCardScreenState extends State<AddStudentCardScreen>
       if (!kIsWeb) {
         throw Exception('Web download called on non-web platform');
       }
-      await downloadImageWeb(pngBytes, fileName);
+      await downloadImage(pngBytes, fileName);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -789,10 +788,6 @@ class _AddStudentCardScreenState extends State<AddStudentCardScreen>
               ),
               const SizedBox(width: 16),
 
-
-
-
-              
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,

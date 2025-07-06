@@ -191,7 +191,7 @@ class _CameraScannerWidgetState extends State<CameraScannerWidget> {
   @override
   Widget build(BuildContext context) {
     return Card(
-      color: AppColors.cardBackground,
+      color: AppColors.scaffoldBackground,
       elevation: 4,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       child: Padding(
