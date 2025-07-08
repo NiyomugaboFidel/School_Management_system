@@ -21,7 +21,7 @@ class _TestSyncSystemState extends State<TestSyncSystem> {
   List<String> _logs = [];
 
   // Update to use single ConnectivityResult
-  StreamSubscription<ConnectivityResult>? _connectivitySubscription;
+  StreamSubscription<List<ConnectivityResult>>? _connectivitySubscription;
   ConnectivityResult _connectivityStatus = ConnectivityResult.none;
 
   @override
@@ -30,14 +30,16 @@ class _TestSyncSystemState extends State<TestSyncSystem> {
     _initializeSystem();
     // Listen for connectivity changes using the new API
     _connectivitySubscription = ConnectivityService().onConnectivityChanged
-        .listen((result) async {
-          _connectivityStatus = result;
-          final isOnline = result != ConnectivityResult.none;
-          _addLog('Connectivity changed: ${result.name} (Online: $isOnline)');
-          if (isOnline) {
-            await SyncService.instance.ensureFirebaseInitialized();
+        .listen((results) async {
+          for (var result in results) {
+            _connectivityStatus = result;
+            final isOnline = result != ConnectivityResult.none;
+            _addLog('Connectivity changed: ${result.toString()} (Online: $isOnline)');
+            if (isOnline) {
+              await SyncService.instance.ensureFirebaseInitialized();
+            }
+            await _checkSyncStatus();
           }
-          await _checkSyncStatus();
           setState(() {}); // Update UI
         });
   }

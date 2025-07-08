@@ -165,7 +165,7 @@ class MyApp extends StatelessWidget {
       ),
 
       // Card Theme
-      cardTheme: CardTheme(
+      cardTheme: CardThemeData(
         color: AppColors.cardColor,
         elevation: 2,
         shadowColor: const Color(0x1A000000),
@@ -282,7 +282,7 @@ class MyApp extends StatelessWidget {
       ),
 
       // Card Theme
-      cardTheme: CardTheme(
+      cardTheme: CardThemeData(
         color: AppColors.cardColorDark,
         elevation: 2,
         shadowColor: const Color(0x40000000),
