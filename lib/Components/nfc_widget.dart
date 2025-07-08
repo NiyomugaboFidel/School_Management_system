@@ -18,6 +18,7 @@ class _NfcScannerWidgetState extends State<NfcScannerWidget>
     with WidgetsBindingObserver {
   bool _isScanning = false;
   bool _isAvailable = false;
+  Set<String> _recentlyScanned = {};
 
   @override
   void initState() {
@@ -29,9 +30,7 @@ class _NfcScannerWidgetState extends State<NfcScannerWidget>
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
-    if (_isScanning) {
-      FlutterNfcKit.finish();
-    }
+    _stopNfcScan();
     super.dispose();
   }
 
@@ -39,7 +38,7 @@ class _NfcScannerWidgetState extends State<NfcScannerWidget>
   void didChangeAppLifecycleState(AppLifecycleState state) {
     super.didChangeAppLifecycleState(state);
     if (state == AppLifecycleState.resumed && _isAvailable && !_isScanning) {
-      _startNfcScan();
+      _startContinuousNfcScan();
     }
   }
 
@@ -50,7 +49,7 @@ class _NfcScannerWidgetState extends State<NfcScannerWidget>
         _isAvailable = availability == NFCAvailability.available;
       });
       if (_isAvailable) {
-        _startNfcScan();
+        _startContinuousNfcScan();
       }
     } catch (e) {
       setState(() {
@@ -59,31 +58,67 @@ class _NfcScannerWidgetState extends State<NfcScannerWidget>
     }
   }
 
-  Future<void> _startNfcScan() async {
+  Future<void> _startContinuousNfcScan() async {
     if (!_isAvailable || _isScanning) return;
+    setState(() => _isScanning = true);
 
-    setState(() {
-      _isScanning = true;
-    });
+    while (_isScanning) {
+      try {
+        final tag = await FlutterNfcKit.poll(
+          timeout: const Duration(seconds: 20),
+          iosMultipleTagMessage:
+              "Multiple NFC tags detected! Please present only one tag.",
+          iosAlertMessage: "Hold your device near an NFC tag.",
+        );
+        if (!_isScanning) break;
 
-    try {
-      final tag = await FlutterNfcKit.poll(
-        timeout: const Duration(seconds: 60),
-        iosMultipleTagMessage:
-            "Multiple NFC tags detected! Please present only one tag.",
-        iosAlertMessage: "Hold your device near an NFC tag.",
-      );
-
-      if (mounted) {
-        await _processTag(tag);
-      }
-    } catch (e) {
-      if (mounted) {
-        // Add 2-second delay to avoid errors
-        await Future.delayed(const Duration(seconds: 2));
-        if (mounted && _isAvailable) {
-          _startNfcScan();
+        String? ndefText = await _extractNdefText(tag);
+        if (ndefText == null || ndefText.isEmpty) {
+          throw Exception('No valid NDEF text found on NFC tag');
         }
+
+        // Debounce: Ignore if scanned in last 1s
+        if (_recentlyScanned.contains(ndefText)) continue;
+        _recentlyScanned.add(ndefText);
+        Future.delayed(
+          const Duration(seconds: 1),
+          () => _recentlyScanned.remove(ndefText),
+        );
+
+        final result = ScanResult(
+          id: ndefText,
+          data: ndefText,
+          type: ScanType.nfc,
+          timestamp: DateTime.now(),
+        );
+        widget.onScanResult(result);
+
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('NFC Tag Read: $ndefText'),
+              backgroundColor: AppColors.primary,
+              duration: const Duration(seconds: 2),
+            ),
+          );
+        }
+
+        await FlutterNfcKit.finish(
+          iosAlertMessage: "NFC tag read successfully!",
+        );
+        // No delay, immediately ready for next scan
+      } catch (e) {
+        if (!_isScanning) break;
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Error: $e'),
+              backgroundColor: AppColors.error,
+            ),
+          );
+        }
+        await FlutterNfcKit.finish(iosErrorMessage: "Failed to read NFC tag");
+        // No delay, immediately ready for next scan
       }
     }
   }
@@ -104,69 +139,9 @@ class _NfcScannerWidgetState extends State<NfcScannerWidget>
     return null;
   }
 
-  Future<void> _processTag(NFCTag tag) async {
-    try {
-      await FlutterNfcKit.setIosAlertMessage("Processing NFC tag...");
-
-      String? ndefText = await _extractNdefText(tag);
-      if (ndefText == null || ndefText.isEmpty) {
-        throw Exception('No valid NDEF text found on NFC tag');
-      }
-
-      final result = ScanResult(
-        id: ndefText,
-        data: ndefText,
-        type: ScanType.nfc,
-        timestamp: DateTime.now(),
-      );
-
-      widget.onScanResult(result);
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('NFC Tag Read: $ndefText'),
-            backgroundColor: AppColors.primary,
-            duration: const Duration(seconds: 2),
-          ),
-        );
-      }
-
-      await FlutterNfcKit.finish(iosAlertMessage: "NFC tag read successfully!");
-
-      // Add 2-second delay before restarting
-      await Future.delayed(const Duration(seconds: 2));
-
-      if (mounted && _isAvailable) {
-        _startNfcScan();
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error: $e'),
-            backgroundColor: AppColors.error,
-          ),
-        );
-
-        await FlutterNfcKit.finish(iosErrorMessage: "Failed to read NFC tag");
-
-        // Add 2-second delay before restarting
-        await Future.delayed(const Duration(seconds: 2));
-        if (_isAvailable) {
-          _startNfcScan();
-        }
-      }
-    }
-  }
-
   void _stopNfcScan() async {
     if (!_isScanning) return;
-
-    setState(() {
-      _isScanning = false;
-    });
-
+    setState(() => _isScanning = false);
     try {
       await FlutterNfcKit.finish(iosAlertMessage: "NFC scanning stopped");
     } catch (e) {
@@ -189,7 +164,7 @@ class _NfcScannerWidgetState extends State<NfcScannerWidget>
       height: 60,
       child: Center(
         child: ElevatedButton(
-          onPressed: _isScanning ? _stopNfcScan : _startNfcScan,
+          onPressed: _isScanning ? _stopNfcScan : _startContinuousNfcScan,
           style: ElevatedButton.styleFrom(
             backgroundColor: _isScanning ? AppColors.error : AppColors.primary,
             foregroundColor: Colors.white,

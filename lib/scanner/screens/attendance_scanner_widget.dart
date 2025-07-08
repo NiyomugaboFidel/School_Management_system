@@ -10,6 +10,7 @@ import 'package:sqlite_crud_app/services/auth_services.dart';
 import 'package:sqlite_crud_app/SQLite/database_helper.dart';
 import 'package:sqlite_crud_app/scanner/screens/scanner_screen.dart'
     show ScannerType;
+import '../../../Components/attendance_result_popup.dart';
 
 class AttendanceScannerWidget extends StatefulWidget {
   final String currentUserName;
@@ -109,7 +110,7 @@ class _AttendanceScannerWidgetState extends State<AttendanceScannerWidget>
       int? parsedId = int.tryParse(rawId.trim());
       if (parsedId == null) {
         print('[ERROR] Failed to parse scanned ID to int: $rawId');
-        _showErrorSnackBar('Invalid student ID scanned: $rawId');
+        _showErrorSnackBar('Invalid student ID');
         return;
       }
 
@@ -123,9 +124,7 @@ class _AttendanceScannerWidgetState extends State<AttendanceScannerWidget>
       );
 
       if (student == null) {
-        _showErrorSnackBar(
-          'Student not found for scanned ${_getScanTypeName(scanResult.type)}',
-        );
+        _showErrorSnackBar('Student not found');
         return;
       }
 
@@ -157,15 +156,31 @@ class _AttendanceScannerWidgetState extends State<AttendanceScannerWidget>
         '[DEBUG] Attendance mark result: ${success == true ? 'SUCCESS' : 'FAILURE'}',
       );
       if (success == true) {
-        _showSuccessDialog(student, attendanceStatus, scanResult.type);
         await _loadTodayAttendance();
         HapticFeedback.heavyImpact();
+        showAttendancePopup(
+          context,
+          studentName: student!.fullName,
+          studentId: student!.studentId.toString(),
+          gender: 'N/A',
+          imageUrl: student!.profileImage ?? '',
+          status: status,
+          success: true,
+        );
       } else {
-        _showErrorSnackBar('Failed to mark attendance for ${student.fullName}');
+        showAttendancePopup(
+          context,
+          studentName: student!.fullName,
+          studentId: student!.studentId.toString(),
+          gender: 'N/A',
+          imageUrl: student!.profileImage ?? '',
+          status: status,
+          success: false,
+        );
       }
     } catch (e) {
       print('[ERROR] Exception in _handleScanResult: $e');
-      _showErrorSnackBar('Error processing scan: $e');
+      _showErrorSnackBar('Error processing scan');
     } finally {
       setState(() {
         _isProcessing = false;
@@ -226,12 +241,12 @@ class _AttendanceScannerWidgetState extends State<AttendanceScannerWidget>
             );
           }).toList();
       if (unmarkedStudents.isEmpty) {
-        _showInfoSnackBar('All students have been marked for today');
+        _showInfoSnackBar('All students marked');
         return;
       }
       final confirmed = await _showConfirmationDialog(
-        'Mark ${unmarkedStudents.length} students as absent?',
-        'This will mark all unmarked students as absent for today.',
+        'Mark ${unmarkedStudents.length} students absent?',
+        'Mark all unmarked students as absent.',
       );
       if (!confirmed) return;
       int successCount = 0;
@@ -248,79 +263,11 @@ class _AttendanceScannerWidgetState extends State<AttendanceScannerWidget>
         if (result == true || (result is bool && result == true))
           successCount++;
       }
-      _showSuccessSnackBar('$successCount students marked as absent');
+      _showSuccessSnackBar('$successCount students marked absent');
       await _loadTodayAttendance();
     } catch (e) {
-      _showErrorSnackBar('Failed to mark absent students: $e');
+      _showErrorSnackBar('Failed to mark absent students');
     }
-  }
-
-  void _showSuccessDialog(
-    Student student,
-    AttendanceStatus status,
-    ScanType scanType,
-  ) {
-    showDialog(
-      context: context,
-      builder:
-          (context) => AlertDialog(
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(16),
-            ),
-            content: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Container(
-                  width: 80,
-                  height: 80,
-                  decoration: BoxDecoration(
-                    color: _getStatusColor(status).withOpacity(0.1),
-                    shape: BoxShape.circle,
-                  ),
-                  child: Icon(
-                    _getStatusIcon(status),
-                    size: 40,
-                    color: _getStatusColor(status),
-                  ),
-                ),
-                const SizedBox(height: 16),
-                Text(
-                  status.name.toUpperCase() + ' ✓',
-                  style: TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
-                    color: _getStatusColor(status),
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  student.fullName,
-                  style: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
-                  ),
-                  textAlign: TextAlign.center,
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  'ID: ${student.studentId}',
-                  style: TextStyle(fontSize: 14, color: AppColors.textLight),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  'Scanned via ${_getScanTypeName(scanType)}',
-                  style: TextStyle(fontSize: 12, color: AppColors.textLight),
-                ),
-              ],
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.of(context).pop(),
-                child: const Text('OK'),
-              ),
-            ],
-          ),
-    );
   }
 
   void _showWarningDialog(Student student, AttendanceLog existingAttendance) {
@@ -328,40 +275,10 @@ class _AttendanceScannerWidgetState extends State<AttendanceScannerWidget>
       context: context,
       builder:
           (context) => AlertDialog(
-            title: Row(
-              children: [
-                Icon(Icons.warning, color: AppColors.warning),
-                const SizedBox(width: 8),
-                const Text('Already Marked'),
-              ],
-            ),
-            content: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('${student.fullName} has already been marked today:'),
-                const SizedBox(height: 8),
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: AppColors.scaffoldBackground,
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Row(
-                    children: [
-                      Icon(
-                        _getStatusIcon(existingAttendance.status),
-                        color: _getStatusColor(existingAttendance.status),
-                      ),
-                      const SizedBox(width: 8),
-                      Text(
-                        existingAttendance.status.value.toUpperCase(),
-                        style: const TextStyle(fontWeight: FontWeight.bold),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
+            title: const Text('Already Marked'),
+            content: Text(
+              'Student already marked as ${existingAttendance.status.value.toUpperCase()}',
+              style: const TextStyle(fontSize: 16),
             ),
             actions: [
               TextButton(
@@ -845,4 +762,29 @@ class _AttendanceScannerWidgetState extends State<AttendanceScannerWidget>
       },
     );
   }
+}
+
+void showAttendancePopup(
+  BuildContext context, {
+  required String studentName,
+  required String studentId,
+  required String gender,
+  required String imageUrl,
+  required String status,
+  required bool success,
+}) {
+  final overlay = Overlay.of(context);
+  final entry = OverlayEntry(
+    builder:
+        (_) => AttendanceResultPopup(
+          studentName: studentName,
+          studentId: studentId,
+          gender: gender,
+          imageUrl: imageUrl,
+          status: status,
+          success: success,
+        ),
+  );
+  overlay.insert(entry);
+  // Auto-dismiss is handled by the popup itself
 }

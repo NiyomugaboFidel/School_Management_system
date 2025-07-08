@@ -1,14 +1,19 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 
 class NotificationService {
   static final NotificationService _instance = NotificationService._internal();
   factory NotificationService() => _instance;
   NotificationService._internal();
 
-  final FlutterLocalNotificationsPlugin _notifications =
+  static final FlutterLocalNotificationsPlugin _notifications =
       FlutterLocalNotificationsPlugin();
+  static final FirebaseMessaging _firebaseMessaging =
+      FirebaseMessaging.instance;
 
   // Notification channels
   static const String _attendanceChannel = 'attendance_channel';
@@ -37,6 +42,36 @@ class NotificationService {
     );
 
     await _createNotificationChannels();
+
+    // Only run firebase_messaging code on non-web platforms
+    if (!kIsWeb) {
+      try {
+        await _firebaseMessaging.requestPermission();
+
+        // Set up message listener with error handling
+        FirebaseMessaging.onMessage.listen(
+          (message) {
+            try {
+              final notification = message.notification;
+              if (notification != null) {
+                NotificationService.showNotification(
+                  notification.title ?? 'Notification',
+                  notification.body ?? '',
+                );
+              }
+            } catch (e) {
+              print('Error handling Firebase message: $e');
+            }
+          },
+          onError: (error) {
+            print('Firebase messaging error: $error');
+          },
+        );
+      } catch (e) {
+        print('Firebase messaging initialization failed: $e');
+        // Continue without Firebase messaging
+      }
+    }
   }
 
   /// Create notification channels for Android
@@ -335,5 +370,28 @@ class NotificationService {
   /// Cancel specific notification
   Future<void> cancelNotification(int id) async {
     await _notifications.cancel(id);
+  }
+
+  static Future<void> showNotification(String title, String body) async {
+    const AndroidNotificationDetails androidPlatformChannelSpecifics =
+        AndroidNotificationDetails(
+          'default_channel',
+          'General',
+          importance: Importance.max,
+          priority: Priority.high,
+        );
+    const NotificationDetails platformChannelSpecifics = NotificationDetails(
+      android: androidPlatformChannelSpecifics,
+    );
+    await _notifications.show(0, title, body, platformChannelSpecifics);
+    await logNotification(title, body);
+  }
+
+  static Future<void> logNotification(String title, String body) async {
+    await FirebaseFirestore.instance.collection('notifications').add({
+      'title': title,
+      'body': body,
+      'timestamp': DateTime.now().millisecondsSinceEpoch,
+    });
   }
 }

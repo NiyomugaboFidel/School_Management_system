@@ -12,20 +12,34 @@ import 'package:sqlite_crud_app/utils/user_session.dart';
 import 'package:sqlite_crud_app/utils/theme_provider.dart';
 import 'package:sqlite_crud_app/permission_service.dart';
 import 'package:sqlite_crud_app/splash_decider.dart';
+import 'package:sqlite_crud_app/test_splash.dart';
+import 'package:sqlite_crud_app/test_firebase_page.dart';
 import 'package:sqlite_crud_app/navigation_menu.dart' show NavigationController;
 import 'package:firebase_core/firebase_core.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'services/notification_service.dart';
+import 'services/connectivity_service.dart';
 
 import 'firebase_options.dart';
 
 Future<void> main() async {
+  print('🚀 App starting...');
   WidgetsFlutterBinding.ensureInitialized();
+  print('✅ Flutter binding initialized');
 
+  // Configure Flutter for better performance
   if (!kIsWeb) {
-    await requestAllPermissions();
+    // Set up error handling for OpenGL ES
+    FlutterError.onError = (FlutterErrorDetails details) {
+      if (details.exception.toString().contains('OpenGL ES')) {
+        print('⚠️ OpenGL ES warning suppressed: ${details.exception}');
+        return;
+      }
+      FlutterError.presentError(details);
+    };
   }
 
-  // System UI overlay settings.
+  // System UI overlay settings - do this first
   SystemChrome.setSystemUIOverlayStyle(
     const SystemUiOverlayStyle(
       statusBarColor: Colors.transparent,
@@ -36,13 +50,23 @@ Future<void> main() async {
       statusBarIconBrightness: Brightness.dark,
     ),
   );
+  print('✅ System UI configured');
 
-  // Initialize Firebase
-  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
-
-  // Initialize SharedPreferences
+  // Initialize SharedPreferences first
   await SharedPreferences.getInstance();
+  print('✅ SharedPreferences initialized');
 
+  // Initialize connectivity service for all users
+  try {
+    print('🌐 Initializing connectivity monitoring...');
+    await ConnectivityService().initialize();
+    print('✅ Connectivity monitoring initialized');
+  } catch (e) {
+    print('❌ Connectivity monitoring failed: $e');
+  }
+
+  // Run the app immediately, let splash screen handle initialization
+  print('🎯 Running app...');
   runApp(
     MultiProvider(
       providers: [
@@ -53,6 +77,7 @@ Future<void> main() async {
       child: const MyApp(),
     ),
   );
+  print('✅ App launched successfully');
 }
 
 class MyApp extends StatelessWidget {
@@ -64,7 +89,7 @@ class MyApp extends StatelessWidget {
       builder: (context, themeProvider, child) {
         return MaterialApp(
           debugShowCheckedModeBanner: false,
-          // Use SplashDecider to determine initial route
+          // Use SplashDecider for full initialization
           home: const SplashDecider(),
           routes: {
             '/login': (context) => const LoginScreen(),
@@ -72,6 +97,7 @@ class MyApp extends StatelessWidget {
             '/profile': (context) => ProfileScreen(),
             '/home': (context) => const NavigationMenu(),
             '/settings': (context) => const SettingsScreen(),
+            '/test-firebase': (context) => const TestFirebasePage(),
           },
           title: 'XTAP',
           theme: _buildLightTheme(),

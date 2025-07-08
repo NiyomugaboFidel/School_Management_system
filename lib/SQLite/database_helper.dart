@@ -23,6 +23,7 @@ import '../models/discipline.dart';
 class DatabaseHelper {
   static final DatabaseHelper _instance = DatabaseHelper._internal();
   static Database? _database;
+  static bool _isInitializing = false;
 
   factory DatabaseHelper() => _instance;
   DatabaseHelper._internal();
@@ -44,8 +45,24 @@ class DatabaseHelper {
 
   /// Get database instance - lazy initialization
   Future<Database> get database async {
-    _database ??= await _initDatabase();
-    return _database!;
+    if (_database != null) return _database!;
+
+    // Prevent multiple simultaneous initializations
+    if (_isInitializing) {
+      // Wait for the current initialization to complete
+      while (_isInitializing) {
+        await Future.delayed(const Duration(milliseconds: 100));
+      }
+      return _database!;
+    }
+
+    _isInitializing = true;
+    try {
+      _database = await _initDatabase();
+      return _database!;
+    } finally {
+      _isInitializing = false;
+    }
   }
 
   /// Initialize database with proper error handling
@@ -83,7 +100,21 @@ class DatabaseHelper {
     _createIndexes(batch);
 
     await batch.commit(noResult: true);
-    await _insertInitialData(db);
+
+    // Insert initial data in background to avoid blocking
+    _insertInitialDataInBackground(db);
+  }
+
+  /// Insert initial data in background to avoid blocking UI
+  void _insertInitialDataInBackground(Database db) {
+    Future.microtask(() async {
+      try {
+        await _insertInitialData(db);
+        print('Database initialization completed successfully');
+      } catch (e) {
+        print('Error inserting initial data: $e');
+      }
+    });
   }
 
   /// Create users table
@@ -1695,6 +1726,26 @@ class DatabaseHelper {
       return result > 0;
     } catch (e) {
       print('Error updating discipline sync status: $e');
+      return false;
+    }
+  }
+
+  /// Update student sync status
+  Future<bool> updateStudentSyncStatus(int studentId, bool synced) async {
+    try {
+      final db = await database;
+      final result = await db.update(
+        _tableStudents,
+        {
+          'synced': synced ? 1 : 0,
+          'updated_at': DateTime.now().toIso8601String(),
+        },
+        where: 'student_id = ?',
+        whereArgs: [studentId],
+      );
+      return result > 0;
+    } catch (e) {
+      print('Error updating student sync status: $e');
       return false;
     }
   }

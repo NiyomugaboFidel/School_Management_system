@@ -1,0 +1,49 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Allow read/write access to test_connection collection for testing
+    match /test_connection/{document} {
+      allow read, write: if true;
+    }
+    
+    // Allow read/write access to notifications collection
+    match /notifications/{document} {
+      allow read, write: if true;
+    }
+    
+    // Allow read/write access to events collection
+    match /events/{document} {
+      allow read, write: if true;
+    }
+    
+    // Allow read/write access to global_settings collection
+    match /global_settings/{document} {
+      allow read, write: if true;
+    }
+    
+    // Allow read/write access to students collection (for sync)
+    match /students/{document} {
+      allow read, write: if true;
+    }
+    
+    // Allow read/write access to payments collection (for sync)
+    match /payments/{document} {
+      allow read, write: if true;
+    }
+    
+    // Allow read/write access to attendance collection (for sync)
+    match /attendance/{document} {
+      allow read, write: if true;
+    }
+    
+    // Allow read/write access to audit_logs collection
+    match /audit_logs/{document} {
+      allow read, write: if true;
+    }
+    
+    // Default rule - deny all other access
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

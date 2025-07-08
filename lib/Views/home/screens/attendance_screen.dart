@@ -9,6 +9,7 @@ import 'package:sqlite_crud_app/Views/home/screens/student_list.dart';
 import 'package:sqlite_crud_app/Views/home/screens/attendance_record_list.dart';
 import 'package:sqlite_crud_app/models/class.dart';
 import 'package:sqlite_crud_app/models/level.dart';
+import '../../../Components/attendance_result_popup.dart';
 
 class AttendanceScreen extends StatefulWidget {
   @override
@@ -111,6 +112,31 @@ class _AttendanceScreenState extends State<AttendanceScreen>
     return map;
   }
 
+  void showAttendancePopup(
+    BuildContext context, {
+    required String studentName,
+    required String studentId,
+    required String gender,
+    required String imageUrl,
+    required String status,
+    required bool success,
+  }) {
+    final overlay = Overlay.of(context);
+    final entry = OverlayEntry(
+      builder:
+          (_) => AttendanceResultPopup(
+            studentName: studentName,
+            studentId: studentId,
+            gender: gender,
+            imageUrl: imageUrl,
+            status: status,
+            success: success,
+          ),
+    );
+    overlay.insert(entry);
+    // Auto-dismiss is handled by the popup itself
+  }
+
   Future<void> _markAttendance(Student student, String status) async {
     try {
       final result = await DatabaseHelper().markAttendance(
@@ -118,22 +144,47 @@ class _AttendanceScreenState extends State<AttendanceScreen>
         status,
         'CurrentUser',
       );
-      final bool success = result == true;
+
+      // Handle AttendanceResult object
+      bool success = result.isSuccess;
+
       if (success) {
-        // Reload all attendance logs for today
-        allTodayAttendance = await DatabaseHelper().getTodayAttendance();
-        // Reload students and their attendance for the selected class
+        // Show success popup immediately
+        showAttendancePopup(
+          context,
+          studentName: student.fullName,
+          studentId: student.studentId.toString(),
+          gender: 'N/A',
+          imageUrl: student.profileImage ?? '',
+          status: status,
+          success: true,
+        );
+
+        // Reload attendance data
         await _loadStudentsAndAttendance();
+
+        // Haptic feedback
         HapticFeedback.lightImpact();
+
+        // Update UI immediately
+        setState(() {});
+      } else {
+        // Show failure popup
+        showAttendancePopup(
+          context,
+          studentName: student.fullName,
+          studentId: student.studentId.toString(),
+          gender: 'N/A',
+          imageUrl: student.profileImage ?? '',
+          status: status,
+          success: false,
+        );
+
+        // Show error snackbar
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Attendance marked: ${student.fullName} - $status'),
-            backgroundColor:
-                status == 'Present'
-                    ? AppColors.success
-                    : status == 'Late'
-                    ? AppColors.warning
-                    : AppColors.error,
+            content: Text('Failed to mark attendance for ${student.fullName}'),
+            backgroundColor: AppColors.error,
             behavior: SnackBarBehavior.floating,
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(10),
@@ -141,14 +192,27 @@ class _AttendanceScreenState extends State<AttendanceScreen>
             duration: const Duration(seconds: 2),
           ),
         );
-        setState(() {}); // Ensure UI updates
       }
     } catch (e) {
+      // Show failure popup for exceptions
+      showAttendancePopup(
+        context,
+        studentName: student.fullName,
+        studentId: student.studentId.toString(),
+        gender: 'N/A',
+        imageUrl: student.profileImage ?? '',
+        status: status,
+        success: false,
+      );
+
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Failed to mark attendance: $e'),
+          content: Text('Error marking attendance: $e'),
           backgroundColor: AppColors.error,
           behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(10),
+          ),
         ),
       );
     }

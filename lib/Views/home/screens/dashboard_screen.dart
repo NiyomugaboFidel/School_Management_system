@@ -12,6 +12,9 @@ import 'attendance_screen.dart';
 import 'payment_screen.dart';
 import 'discipline_screen.dart';
 import '../../attendance/screens/attendance_scan_screen.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:sqlite_crud_app/services/connectivity_service.dart';
+import 'package:connectivity_plus/connectivity_plus.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -26,7 +29,8 @@ class _DashboardScreenState extends State<DashboardScreen>
   late Animation<double> _fadeAnimation;
 
   final DatabaseHelper _dbHelper = DatabaseHelper();
-  final SyncService _syncService = SyncService();
+  late SyncService _syncService;
+  bool _syncServiceReady = false;
 
   // Statistics data
   int totalStudents = 0;
@@ -38,6 +42,10 @@ class _DashboardScreenState extends State<DashboardScreen>
   bool isSyncing = false;
   String syncStatus = 'Checking sync status...';
   DateTime? lastSyncTime;
+
+  // Connectivity status
+  ConnectivityResult _connectivityStatus = ConnectivityResult.none;
+  bool _isOnline = false;
 
   @override
   void initState() {
@@ -51,8 +59,10 @@ class _DashboardScreenState extends State<DashboardScreen>
       CurvedAnimation(parent: _animationController, curve: Curves.easeInOut),
     );
 
+    _initSyncService();
     _loadDashboardData();
     _checkSyncStatus();
+    _initConnectivityStatus();
     _animationController.forward();
   }
 
@@ -60,6 +70,17 @@ class _DashboardScreenState extends State<DashboardScreen>
   void dispose() {
     _animationController.dispose();
     super.dispose();
+  }
+
+  Future<void> _initSyncService() async {
+    final db = await _dbHelper.database;
+    setState(() {
+      _syncService = SyncService(
+        firestore: FirebaseFirestore.instance,
+        localDb: db,
+      );
+      _syncServiceReady = true;
+    });
   }
 
   Future<void> _loadDashboardData() async {
@@ -128,22 +149,19 @@ class _DashboardScreenState extends State<DashboardScreen>
   }
 
   Future<void> _performSync() async {
+    if (!_syncServiceReady) return;
     setState(() {
       isSyncing = true;
     });
-
     try {
       await _syncService.syncAllData();
-
       final prefs = await SharedPreferences.getInstance();
       await prefs.setString('last_sync_time', DateTime.now().toIso8601String());
-
       setState(() {
         lastSyncTime = DateTime.now();
         syncStatus = 'Last sync: Just now';
         isSyncing = false;
       });
-
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Data synced successfully!'),
@@ -155,7 +173,6 @@ class _DashboardScreenState extends State<DashboardScreen>
       setState(() {
         isSyncing = false;
       });
-
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('Sync failed: $e'),
@@ -178,6 +195,18 @@ class _DashboardScreenState extends State<DashboardScreen>
       return '${difference.inMinutes} minutes ago';
     } else {
       return 'Just now';
+    }
+  }
+
+  Future<void> _initConnectivityStatus() async {
+    try {
+      final status = await ConnectivityService().getConnectivityStatus();
+      setState(() {
+        _connectivityStatus = status;
+        _isOnline = status != ConnectivityResult.none;
+      });
+    } catch (e) {
+      print('Error getting connectivity status: $e');
     }
   }
 
@@ -222,6 +251,10 @@ class _DashboardScreenState extends State<DashboardScreen>
 
                       // Sync Status
                       _buildSyncStatusSection(),
+                      const SizedBox(height: 24),
+
+                      // Connectivity Status
+                      _buildConnectivityStatus(),
                     ],
                   ),
                 ),
@@ -725,6 +758,75 @@ class _DashboardScreenState extends State<DashboardScreen>
         ],
       ),
     );
+  }
+
+  Widget _buildConnectivityStatus() {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 12,
+            height: 12,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: _isOnline ? Colors.green : Colors.red,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  _isOnline ? 'Online' : 'Offline',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: _isOnline ? Colors.green : Colors.red,
+                  ),
+                ),
+                Text(
+                  _getConnectivityTypeText(),
+                  style: TextStyle(fontSize: 14, color: Colors.grey[600]),
+                ),
+              ],
+            ),
+          ),
+          Icon(
+            _isOnline ? Icons.wifi : Icons.wifi_off,
+            color: _isOnline ? Colors.green : Colors.red,
+            size: 24,
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _getConnectivityTypeText() {
+    switch (_connectivityStatus) {
+      case ConnectivityResult.wifi:
+        return 'WiFi Connection';
+      case ConnectivityResult.mobile:
+        return 'Mobile Data';
+      case ConnectivityResult.ethernet:
+        return 'Ethernet Connection';
+      case ConnectivityResult.none:
+        return 'No Internet Connection';
+      default:
+        return 'Unknown Connection';
+    }
   }
 
   String _getGreeting(int hour) {

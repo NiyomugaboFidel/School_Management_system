@@ -13,6 +13,7 @@ import 'package:table_calendar/table_calendar.dart';
 import 'package:intl/intl.dart';
 import '../../../services/holiday_service.dart';
 import '../../../services/notification_service.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({Key? key}) : super(key: key);
@@ -24,7 +25,8 @@ class SettingsScreen extends StatefulWidget {
 class _SettingsScreenState extends State<SettingsScreen> {
   final HolidayService _holidayService = HolidayService();
   final NotificationService _notificationService = NotificationService();
-  final SyncService _syncService = SyncService();
+  late SyncService _syncService;
+  bool _syncServiceReady = false;
   final LocalAuthentication _localAuth = LocalAuthentication();
 
   bool _isBiometricEnabled = false;
@@ -49,6 +51,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   @override
   void initState() {
     super.initState();
+    _initSyncService();
     _loadSettings();
     _loadHolidays();
     _loadAttendanceSettings();
@@ -59,6 +62,17 @@ class _SettingsScreenState extends State<SettingsScreen> {
     _holidayNameController.dispose();
     _holidayDescriptionController.dispose();
     super.dispose();
+  }
+
+  Future<void> _initSyncService() async {
+    final db = await DatabaseHelper().database;
+    setState(() {
+      _syncService = SyncService(
+        firestore: FirebaseFirestore.instance,
+        localDb: db,
+      );
+      _syncServiceReady = true;
+    });
   }
 
   Future<void> _loadSettings() async {
@@ -119,10 +133,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   Future<void> _performSync() async {
+    if (!_syncServiceReady) return;
     setState(() {
       _isLoading = true;
     });
-
     try {
       final result = await _syncService.syncAllData();
       if (result.isSuccess) {

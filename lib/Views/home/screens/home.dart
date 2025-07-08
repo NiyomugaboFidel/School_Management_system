@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:sqlite_crud_app/constants/app_colors.dart';
@@ -8,13 +9,14 @@ import 'package:sqlite_crud_app/Views/home/screens/attendance_screen.dart';
 import 'package:sqlite_crud_app/Views/home/screens/discipline_screen.dart';
 import 'package:sqlite_crud_app/Views/home/screens/payment_screen.dart';
 import 'package:sqlite_crud_app/Views/home/screens/dashboard_screen.dart';
-import 'package:sqlite_crud_app/Components/quick_actions.dart';
-import 'package:sqlite_crud_app/Components/today_activity.dart';
 import 'package:sqlite_crud_app/Views/attendance/screens/attendance_scan_screen.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
 import '../../../SQLite/database_helper.dart';
 import 'add_student_card_screen.dart';
+import '../../../notification_page.dart';
+import 'calendar_page.dart';
+import 'package:sqlite_crud_app/Components/welcome_cards_widget.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -29,6 +31,11 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   late AnimationController _checkInController;
   late Animation<double> _fadeAnimation;
   late Animation<double> _scaleAnimation;
+
+  // Add for welcome card carousel
+  late PageController _pageController;
+  late Timer _timer;
+  int _currentPage = 0;
 
   User? currentUser;
   DateTime? checkInTime;
@@ -55,6 +62,16 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   int absentToday = 0;
   int totalClasses = 0;
 
+  String _getCurrentTime() {
+    final now = DateTime.now();
+    return DateFormat('HH:mm').format(now);
+  }
+
+  String _getWeatherStatus() {
+    // You can integrate with weather API here
+    return 'Sunny';
+  }
+
   @override
   void initState() {
     super.initState();
@@ -72,6 +89,8 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     _scaleAnimation = Tween<double>(begin: 1.0, end: 1.1).animate(
       CurvedAnimation(parent: _checkInController, curve: Curves.elasticOut),
     );
+    _pageController = PageController();
+    _startAutoScroll();
     _checkAndLoadUserSession();
     _loadDashboardData();
     _animationController.forward();
@@ -79,9 +98,28 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
 
   @override
   void dispose() {
+    _timer.cancel();
+    _pageController.dispose();
     _animationController.dispose();
     _checkInController.dispose();
     super.dispose();
+  }
+
+  void _startAutoScroll() {
+    _timer = Timer.periodic(const Duration(seconds: 3), (timer) {
+      if (_currentPage < 2) {
+        _currentPage++;
+      } else {
+        _currentPage = 0;
+      }
+      if (_pageController.hasClients) {
+        _pageController.animateToPage(
+          _currentPage,
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeInOut,
+        );
+      }
+    });
   }
 
   Future<void> _checkAndLoadUserSession() async {
@@ -284,10 +322,13 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       elevation: 0,
       actions: [
         IconButton(
+          icon: Icon(Icons.notifications),
           onPressed: () {
-            Navigator.of(context).pushNamed('/settings');
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (context) => NotificationPage()),
+            );
           },
-          icon: const Icon(Icons.notifications_outlined),
         ),
 
         IconButton(
@@ -370,8 +411,8 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Welcome & Check-in Section
-                _buildWelcomeSection(userSession),
+                // Welcome & Check-in Section (now using the new widget)
+                WelcomeCardsWidget(userSession: userSession),
                 const SizedBox(height: 24),
 
                 // Check-in/Check-out Card
@@ -388,6 +429,40 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
 
                 // Quick Actions
                 _buildQuickActionsSection(),
+                const SizedBox(height: 24),
+                ElevatedButton(
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (context) => CalendarPage()),
+                    );
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor:
+                        AppColors.primary500, // Button background color
+                    foregroundColor: Colors.white,
+                    // Text cole 
+                    minimumSize: Size(double.infinity, 48),
+                    padding: EdgeInsets.symmetric(vertical: 24, horizontal: 24),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    elevation: 4, // Shadow elevation
+                    textStyle: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      letterSpacing: 0.5,
+                    ),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.calendar_today, size: 20, color: Colors.white),
+                      SizedBox(width: 10),
+                      Text('Open Calendar'),
+                    ],
+                  ),
+                ),
               ],
             ),
           ),
@@ -396,65 +471,95 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     );
   }
 
-  Widget _buildWelcomeSection(UserSession userSession) {
-    final currentTime = DateTime.now();
-    final greeting = _getGreeting(currentTime.hour);
-    final formattedDate = DateFormat('EEEE, MMMM d, yyyy').format(currentTime);
-
+  Widget _buildCheckInOutCard() {
     return Container(
-      padding: const EdgeInsets.all(24),
+      height: 200,
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: [AppColors.primary500, AppColors.primary600],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(
-            color: AppColors.primary500.withOpacity(0.3),
-            blurRadius: 15,
-            offset: const Offset(0, 8),
-          ),
-        ],
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: AppColors.primary, width: 1.5),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // Header Section
           Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.2),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Icon(
-                  Icons.person_outline,
-                  color: Colors.white,
-                  size: 28,
-                ),
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(6),
+                    decoration: BoxDecoration(
+                      color: AppColors.primary.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Icon(
+                      Icons.work_outline,
+                      color: AppColors.primary,
+                      size: 16,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Work Session',
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.bold,
+                          color: AppColors.primary,
+                        ),
+                      ),
+                      Text(
+                        DateFormat('MMM dd').format(DateTime.now()),
+                        style: TextStyle(
+                          fontSize: 10,
+                          color: AppColors.textLight,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
               ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: (isCheckedIn ? AppColors.success : AppColors.textLight)
+                      .withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color:
+                        isCheckedIn ? AppColors.success : AppColors.textLight,
+                    width: 1,
+                  ),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
                   children: [
-                    Text(
-                      greeting,
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 16,
-                        fontWeight: FontWeight.w500,
+                    Container(
+                      width: 4,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color:
+                            isCheckedIn
+                                ? AppColors.success
+                                : AppColors.textLight,
+                        shape: BoxShape.circle,
                       ),
                     ),
-                    const SizedBox(height: 4),
+                    const SizedBox(width: 4),
                     Text(
-                      userSession.currentUser?.fullName ?? 'User',
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 24,
-                        fontWeight: FontWeight.bold,
+                      isCheckedIn ? 'Active' : 'Inactive',
+                      style: TextStyle(
+                        fontSize: 10,
+                        fontWeight: FontWeight.w500,
+                        color:
+                            isCheckedIn
+                                ? AppColors.success
+                                : AppColors.textLight,
                       ),
                     ),
                   ],
@@ -462,115 +567,58 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
               ),
             ],
           ),
-          const SizedBox(height: 16),
-          Row(
-            children: [
-              Icon(
-                Icons.calendar_today,
-                color: Colors.white.withOpacity(0.8),
-                size: 16,
-              ),
-              const SizedBox(width: 8),
-              Text(
-                formattedDate,
-                style: TextStyle(
-                  color: Colors.white.withOpacity(0.9),
-                  fontSize: 14,
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
 
-  Widget _buildCheckInOutCard() {
-    return Container(
-      padding: const EdgeInsets.all(24),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.1),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Column(
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Work Session',
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                      color: AppColors.textDark,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    isCheckedIn ? 'Active Session' : 'Not Started',
-                    style: TextStyle(
-                      fontSize: 14,
-                      color:
-                          isCheckedIn ? AppColors.success : AppColors.textLight,
-                    ),
-                  ),
-                ],
-              ),
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 6,
-                ),
-                decoration: BoxDecoration(
-                  color: (isCheckedIn ? AppColors.success : AppColors.textLight)
-                      .withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Text(
-                  _getSessionDuration(),
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                    color:
-                        isCheckedIn ? AppColors.success : AppColors.textLight,
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 20),
+          const SizedBox(height: 16),
+
+          // Session Duration and Times Row
           Row(
             children: [
+              // Duration
+              Expanded(
+                flex: 2,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Duration',
+                      style: TextStyle(
+                        fontSize: 10,
+                        color: AppColors.textLight,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      _getSessionDuration(),
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.primary,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+              // Check In/Out Times
               if (checkInTime != null) ...[
                 Expanded(
                   child: Column(
                     children: [
-                      Icon(Icons.login, color: AppColors.success, size: 20),
-                      const SizedBox(height: 4),
+                      Icon(Icons.login, color: AppColors.success, size: 14),
+                      const SizedBox(height: 2),
                       Text(
-                        'Check In',
+                        'In',
                         style: TextStyle(
-                          fontSize: 12,
+                          fontSize: 9,
                           color: AppColors.textLight,
                         ),
                       ),
-                      const SizedBox(height: 2),
                       Text(
                         DateFormat('HH:mm').format(checkInTime!),
                         style: TextStyle(
-                          fontSize: 16,
+                          fontSize: 12,
                           fontWeight: FontWeight.bold,
-                          color: AppColors.textDark,
+                          color: AppColors.primary,
                         ),
                       ),
                     ],
@@ -581,22 +629,21 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                 Expanded(
                   child: Column(
                     children: [
-                      Icon(Icons.logout, color: AppColors.warning, size: 20),
-                      const SizedBox(height: 4),
+                      Icon(Icons.logout, color: AppColors.primary, size: 14),
+                      const SizedBox(height: 2),
                       Text(
-                        'Check Out',
+                        'Out',
                         style: TextStyle(
-                          fontSize: 12,
+                          fontSize: 9,
                           color: AppColors.textLight,
                         ),
                       ),
-                      const SizedBox(height: 2),
                       Text(
                         DateFormat('HH:mm').format(checkOutTime!),
                         style: TextStyle(
-                          fontSize: 16,
+                          fontSize: 12,
                           fontWeight: FontWeight.bold,
-                          color: AppColors.textDark,
+                          color: AppColors.primary,
                         ),
                       ),
                     ],
@@ -605,32 +652,40 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
               ],
             ],
           ),
-          const SizedBox(height: 20),
+
+          const Spacer(),
+
+          // Action Button
           ScaleTransition(
             scale: _scaleAnimation,
             child: SizedBox(
               width: double.infinity,
+              height: 42,
               child: ElevatedButton(
                 onPressed: () => _handleCheckAction(!isCheckedIn),
                 style: ElevatedButton.styleFrom(
-                  backgroundColor:
-                      isCheckedIn ? AppColors.warning : AppColors.success,
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  backgroundColor: Colors.white,
+                  foregroundColor:
+                      isCheckedIn ? AppColors.primary : AppColors.success,
                   shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
+                    borderRadius: BorderRadius.circular(10),
+                    side: BorderSide(
+                      color:
+                          isCheckedIn ? AppColors.primary : AppColors.success,
+                      width: 1.5,
+                    ),
                   ),
-                  elevation: 2,
+                  elevation: 0,
                 ),
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Icon(isCheckedIn ? Icons.logout : Icons.login, size: 20),
+                    Icon(isCheckedIn ? Icons.logout : Icons.login, size: 16),
                     const SizedBox(width: 8),
                     Text(
                       isCheckedIn ? 'Check Out' : 'Check In',
                       style: const TextStyle(
-                        fontSize: 16,
+                        fontSize: 14,
                         fontWeight: FontWeight.w600,
                       ),
                     ),
@@ -646,14 +701,15 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
 
   Widget _buildQuickStats() {
     return Container(
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: AppColors.primary500, width: 1.5),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.1),
-            blurRadius: 8,
+            color: AppColors.primary500.withOpacity(0.08),
+            blurRadius: 12,
             offset: const Offset(0, 4),
           ),
         ],
@@ -661,18 +717,40 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
-            'Quick Overview',
-            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: AppColors.primary500.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Icon(
+                  Icons.dashboard,
+                  color: AppColors.primary500,
+                  size: 20,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Text(
+                'Quick Overview',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: AppColors.primary500,
+                ),
+              ),
+            ],
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 20),
           Row(
             children: [
               Expanded(
                 child: _buildStatItem(
                   Icons.people,
                   totalStudents.toString(),
-                  'Students',
+                  'Total Students',
+                  'Active learners',
                   AppColors.primary500,
                 ),
               ),
@@ -681,11 +759,35 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                 child: _buildStatItem(
                   Icons.class_,
                   totalClasses.toString(),
-                  'Classes',
-                  AppColors.secondary500,
+                  'Total Classes',
+                  'Available courses',
+                  AppColors.primary500,
                 ),
               ),
             ],
+          ),
+          const SizedBox(height: 16),
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: AppColors.primary500.withOpacity(0.05),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: AppColors.primary500.withOpacity(0.2)),
+            ),
+            child: Row(
+              children: [
+                Icon(Icons.trending_up, color: AppColors.primary500, size: 16),
+                const SizedBox(width: 8),
+                Text(
+                  'Growth: +12% this month',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: AppColors.primary500,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ],
+            ),
           ),
         ],
       ),
@@ -696,30 +798,48 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     IconData icon,
     String value,
     String label,
+    String subtitle,
     Color color,
   ) {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.1),
+        color: Colors.white,
         borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: color.withOpacity(0.3), width: 1),
       ),
       child: Column(
         children: [
-          Icon(icon, color: color, size: 24),
-          const SizedBox(height: 8),
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: color.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Icon(icon, color: color, size: 24),
+          ),
+          const SizedBox(height: 12),
           Text(
             value,
             style: TextStyle(
-              fontSize: 20,
+              fontSize: 22,
               fontWeight: FontWeight.bold,
-              color: AppColors.textDark,
+              color: color,
             ),
           ),
           const SizedBox(height: 4),
           Text(
             label,
-            style: TextStyle(fontSize: 12, color: AppColors.textLight),
+            style: TextStyle(
+              fontSize: 12,
+              color: color,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            subtitle,
+            style: TextStyle(fontSize: 10, color: color.withOpacity(0.7)),
           ),
         ],
       ),
@@ -728,14 +848,15 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
 
   Widget _buildTodayActivity() {
     return Container(
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: AppColors.primary500, width: 1.5),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.1),
-            blurRadius: 8,
+            color: AppColors.primary500.withOpacity(0.08),
+            blurRadius: 12,
             offset: const Offset(0, 4),
           ),
         ],
@@ -743,23 +864,52 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
-            'Today\'s Activity',
-            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: AppColors.primary500.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Icon(Icons.today, color: AppColors.primary500, size: 20),
+              ),
+              const SizedBox(width: 12),
+              Text(
+                'Today\'s Activity',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: AppColors.primary500,
+                ),
+              ),
+            ],
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 20),
           _buildActivityItem(
             Icons.access_time,
             'Session Duration',
             _getSessionDuration(),
-            AppColors.info,
+            'Current session time',
+            AppColors.primary500,
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 16),
           _buildActivityItem(
             Icons.check_circle,
             'Status',
             isCheckedIn ? 'Active' : 'Inactive',
-            isCheckedIn ? AppColors.success : AppColors.textLight,
+            isCheckedIn ? 'Currently teaching' : 'Not in session',
+            isCheckedIn
+                ? AppColors.primary500
+                : AppColors.primary500.withOpacity(0.6),
+          ),
+          const SizedBox(height: 16),
+          _buildActivityItem(
+            Icons.group,
+            'Present Today',
+            '24 students',
+            'Out of 30 enrolled',
+            AppColors.primary500,
           ),
         ],
       ),
@@ -770,39 +920,58 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     IconData icon,
     String title,
     String value,
+    String subtitle,
     Color color,
   ) {
-    return Row(
-      children: [
-        Container(
-          padding: const EdgeInsets.all(8),
-          decoration: BoxDecoration(
-            color: color.withOpacity(0.1),
-            borderRadius: BorderRadius.circular(8),
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: color.withOpacity(0.2), width: 1),
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: color.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Icon(icon, color: color, size: 20),
           ),
-          child: Icon(icon, color: color, size: 20),
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                title,
-                style: const TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w500,
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: color,
+                  ),
                 ),
-              ),
-              const SizedBox(height: 2),
-              Text(
-                value,
-                style: TextStyle(fontSize: 12, color: AppColors.textLight),
-              ),
-            ],
+                const SizedBox(height: 4),
+                Text(
+                  value,
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: color,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  subtitle,
+                  style: TextStyle(fontSize: 11, color: color.withOpacity(0.7)),
+                ),
+              ],
+            ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 
@@ -810,16 +979,38 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text(
-          'Quick Actions',
-          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+        Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: AppColors.primary500.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Icon(
+                Icons.flash_on,
+                color: AppColors.primary500,
+                size: 20,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Text(
+              'Quick Actions',
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                color: AppColors.primary500,
+              ),
+            ),
+          ],
         ),
-        const SizedBox(height: 16),
+        const SizedBox(height: 20),
         Row(
           children: [
             Expanded(
               child: _buildActionCard(
-                'Scan QR',
+                'Scan QR Code',
+                'Mark attendance',
                 Icons.qr_code_scanner,
                 AppColors.primary500,
                 () => Navigator.push(
@@ -834,8 +1025,9 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
             Expanded(
               child: _buildActionCard(
                 'Add Student',
+                'Register new learner',
                 Icons.person_add,
-                AppColors.secondary500,
+                AppColors.primary500,
                 () => Navigator.push(
                   context,
                   MaterialPageRoute(
@@ -852,8 +1044,9 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
             Expanded(
               child: _buildActionCard(
                 'Payments',
+                'Manage finances',
                 Icons.payment,
-                AppColors.tertiary500,
+                AppColors.primary500,
                 () => setState(() => currentIndex = 3),
               ),
             ),
@@ -861,8 +1054,9 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
             Expanded(
               child: _buildActionCard(
                 'Analytics',
+                'View insights',
                 Icons.analytics,
-                AppColors.info,
+                AppColors.primary500,
                 () => setState(() => currentIndex = 4),
               ),
             ),
@@ -874,6 +1068,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
 
   Widget _buildActionCard(
     String title,
+    String subtitle,
     IconData icon,
     Color color,
     VoidCallback onTap,
@@ -881,15 +1076,15 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(18),
         decoration: BoxDecoration(
           color: Colors.white,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: color.withOpacity(0.2)),
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: color, width: 1.5),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.1),
-              blurRadius: 4,
+              color: color.withOpacity(0.1),
+              blurRadius: 8,
               offset: const Offset(0, 2),
             ),
           ],
@@ -897,17 +1092,27 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         child: Column(
           children: [
             Container(
-              padding: const EdgeInsets.all(12),
+              padding: const EdgeInsets.all(14),
               decoration: BoxDecoration(
                 color: color.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(8),
+                borderRadius: BorderRadius.circular(10),
               ),
-              child: Icon(icon, color: color, size: 24),
+              child: Icon(icon, color: color, size: 28),
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: 12),
             Text(
               title,
-              style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.bold,
+                color: color,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 4),
+            Text(
+              subtitle,
+              style: TextStyle(fontSize: 11, color: color.withOpacity(0.7)),
               textAlign: TextAlign.center,
             ),
           ],
@@ -921,4 +1126,14 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     if (hour < 17) return 'Good Afternoon';
     return 'Good Evening';
   }
+}
+
+String _getCurrentTime() {
+  final now = DateTime.now();
+  return DateFormat('HH:mm').format(now);
+}
+
+String _getWeatherStatus() {
+  // You can integrate with weather API here
+  return 'Sunny';
 }
