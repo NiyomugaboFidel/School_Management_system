@@ -151,17 +151,17 @@ class _AttendanceScreenState extends State<AttendanceScreen>
 
       // Always show popup after local mark
       AttendanceResultPopup.show(
-        context,
-        studentName: student.fullName,
-        studentId: student.studentId.toString(),
-        gender: 'N/A',
-        imageUrl: student.profileImage ?? '',
-        status: status,
+          context,
+          studentName: student.fullName,
+          studentId: student.studentId.toString(),
+          gender: 'N/A',
+          imageUrl: student.profileImage ?? '',
+          status: status,
         success: success,
-      );
+        );
 
       // Reload attendance data from local DB
-      await _loadStudentsAndAttendance();
+        await _loadStudentsAndAttendance();
       setState(() {});
 
       if (success) {

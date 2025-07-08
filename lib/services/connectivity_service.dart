@@ -11,8 +11,8 @@ class ConnectivityService {
   final Connectivity _connectivity = Connectivity();
   final NotificationService _notificationService = NotificationService();
 
-  StreamSubscription<List<ConnectivityResult>>? _connectivitySubscription;
-  List<ConnectivityResult> _lastConnectivityResults = [];
+  StreamSubscription<ConnectivityResult>? _connectivitySubscription;
+  ConnectivityResult _lastConnectivityResult = ConnectivityResult.none;
   bool _isInitialized = false;
 
   /// Initialize connectivity monitoring
@@ -21,13 +21,13 @@ class ConnectivityService {
 
     try {
       // Get initial connectivity status
-      final connectivityResults = await _connectivity.checkConnectivity();
-      _lastConnectivityResults = connectivityResults;
+      final connectivityResult = await _connectivity.checkConnectivity();
+      _lastConnectivityResult = connectivityResult;
 
       // Listen to connectivity changes
       _connectivitySubscription = _connectivity.onConnectivityChanged.listen(
-        (results) {
-          _handleConnectivityChange(results);
+        (result) {
+          _handleConnectivityChange(result);
         },
         onError: (error) {
           if (kDebugMode) {
@@ -39,7 +39,7 @@ class ConnectivityService {
       _isInitialized = true;
       if (kDebugMode) {
         print(
-          '✅ Connectivity service initialized with status: ${_getConnectivityDescription(connectivityResults)}',
+          '✅ Connectivity service initialized with status: ${_getConnectivityDescription(connectivityResult)}',
         );
       }
     } catch (e) {
@@ -50,33 +50,33 @@ class ConnectivityService {
   }
 
   /// Handle connectivity changes
-  void _handleConnectivityChange(List<ConnectivityResult> results) {
+  void _handleConnectivityChange(ConnectivityResult result) {
     if (kDebugMode) {
       print(
-        '🌐 Connectivity changed: ${_getConnectivityDescription(_lastConnectivityResults)} -> ${_getConnectivityDescription(results)}',
+        '🌐 Connectivity changed: ${_getConnectivityDescription(_lastConnectivityResult)} -> ${_getConnectivityDescription(result)}',
       );
     }
 
     // Don't show notification on first initialization
-    if (_lastConnectivityResults.isEmpty) {
-      _lastConnectivityResults = results;
+    if (_lastConnectivityResult == ConnectivityResult.none) {
+      _lastConnectivityResult = result;
       return;
     }
 
     // Only show notification if status actually changed
-    final wasOnline = _isOnlineFromResults(_lastConnectivityResults);
-    final isOnline = _isOnlineFromResults(results);
+    final wasOnline = _isOnlineFromResult(_lastConnectivityResult);
+    final isOnline = _isOnlineFromResult(result);
 
     if (wasOnline != isOnline) {
-      _showConnectivityNotification(results);
+      _showConnectivityNotification(result);
     }
 
-    _lastConnectivityResults = results;
+    _lastConnectivityResult = result;
   }
 
   /// Show appropriate notification based on connectivity status
-  void _showConnectivityNotification(List<ConnectivityResult> results) {
-    final isOnline = _isOnlineFromResults(results);
+  void _showConnectivityNotification(ConnectivityResult result) {
+    final isOnline = _isOnlineFromResult(result);
 
     if (isOnline) {
       _notificationService.showOnlineNotification();
@@ -86,28 +86,23 @@ class ConnectivityService {
   }
 
   /// Check if results indicate online status
-  bool _isOnlineFromResults(List<ConnectivityResult> results) {
-    return results.any(
-      (result) =>
-          result == ConnectivityResult.wifi ||
-          result == ConnectivityResult.mobile ||
-          result == ConnectivityResult.ethernet ||
-          result == ConnectivityResult.vpn,
-    );
+  bool _isOnlineFromResult(ConnectivityResult result) {
+    return result == ConnectivityResult.wifi ||
+        result == ConnectivityResult.mobile ||
+        result == ConnectivityResult.ethernet ||
+        result == ConnectivityResult.vpn;
   }
 
   /// Get connectivity description for logging
-  String _getConnectivityDescription(List<ConnectivityResult> results) {
-    if (results.isEmpty) return 'Unknown';
-    if (results.length == 1) return results.first.toString();
-    return results.map((r) => r.toString()).join(', ');
+  String _getConnectivityDescription(ConnectivityResult result) {
+    return result.toString();
   }
 
   /// Check if currently online
   Future<bool> isOnline() async {
     try {
-      final results = await _connectivity.checkConnectivity();
-      return _isOnlineFromResults(results);
+      final result = await _connectivity.checkConnectivity();
+      return _isOnlineFromResult(result);
     } catch (e) {
       if (kDebugMode) {
         print('Error checking connectivity: $e');
@@ -117,28 +112,22 @@ class ConnectivityService {
   }
 
   /// Get current connectivity status
-  Future<List<ConnectivityResult>> getConnectivityStatus() async {
+  Future<ConnectivityResult> getConnectivityStatus() async {
     try {
       return await _connectivity.checkConnectivity();
     } catch (e) {
       if (kDebugMode) {
         print('Error getting connectivity status: $e');
       }
-      return [ConnectivityResult.none];
+      return ConnectivityResult.none;
     }
   }
 
   /// Get primary connectivity type (for backward compatibility)
   Future<ConnectivityResult> getPrimaryConnectivityType() async {
     try {
-      final results = await _connectivity.checkConnectivity();
-      if (results.isEmpty) return ConnectivityResult.none;
-
-      // Return the first non-none result, or none if all are none
-      return results.firstWhere(
-        (result) => result != ConnectivityResult.none,
-        orElse: () => ConnectivityResult.none,
-      );
+      final result = await _connectivity.checkConnectivity();
+      return result;
     } catch (e) {
       if (kDebugMode) {
         print('Error getting primary connectivity type: $e');
@@ -150,8 +139,8 @@ class ConnectivityService {
   /// Show initial connectivity status on app startup
   Future<void> showInitialStatus() async {
     try {
-      final results = await _connectivity.checkConnectivity();
-      _showConnectivityNotification(results);
+      final result = await _connectivity.checkConnectivity();
+      _showConnectivityNotification(result);
     } catch (e) {
       if (kDebugMode) {
         print('Error showing initial connectivity status: $e');
@@ -162,8 +151,8 @@ class ConnectivityService {
   /// Check if connected to WiFi
   Future<bool> isWifiConnected() async {
     try {
-      final results = await _connectivity.checkConnectivity();
-      return results.contains(ConnectivityResult.wifi);
+      final result = await _connectivity.checkConnectivity();
+      return result == ConnectivityResult.wifi;
     } catch (e) {
       if (kDebugMode) {
         print('Error checking WiFi connectivity: $e');
@@ -175,8 +164,8 @@ class ConnectivityService {
   /// Check if connected to mobile data
   Future<bool> isMobileConnected() async {
     try {
-      final results = await _connectivity.checkConnectivity();
-      return results.contains(ConnectivityResult.mobile);
+      final result = await _connectivity.checkConnectivity();
+      return result == ConnectivityResult.mobile;
     } catch (e) {
       if (kDebugMode) {
         print('Error checking mobile connectivity: $e');
@@ -188,8 +177,8 @@ class ConnectivityService {
   /// Check if connected to ethernet
   Future<bool> isEthernetConnected() async {
     try {
-      final results = await _connectivity.checkConnectivity();
-      return results.contains(ConnectivityResult.ethernet);
+      final result = await _connectivity.checkConnectivity();
+      return result == ConnectivityResult.ethernet;
     } catch (e) {
       if (kDebugMode) {
         print('Error checking ethernet connectivity: $e');
@@ -201,8 +190,8 @@ class ConnectivityService {
   /// Check if connected via VPN
   Future<bool> isVpnConnected() async {
     try {
-      final results = await _connectivity.checkConnectivity();
-      return results.contains(ConnectivityResult.vpn);
+      final result = await _connectivity.checkConnectivity();
+      return result == ConnectivityResult.vpn;
     } catch (e) {
       if (kDebugMode) {
         print('Error checking VPN connectivity: $e');
@@ -214,15 +203,14 @@ class ConnectivityService {
   /// Get detailed connectivity info as a map
   Future<Map<String, bool>> getDetailedConnectivityInfo() async {
     try {
-      final results = await _connectivity.checkConnectivity();
+      final result = await _connectivity.checkConnectivity();
       return {
-        'isOnline': _isOnlineFromResults(results),
-        'hasWifi': results.contains(ConnectivityResult.wifi),
-        'hasMobile': results.contains(ConnectivityResult.mobile),
-        'hasEthernet': results.contains(ConnectivityResult.ethernet),
-        'hasVpn': results.contains(ConnectivityResult.vpn),
-        'isOffline':
-            results.contains(ConnectivityResult.none) || results.isEmpty,
+        'isOnline': _isOnlineFromResult(result),
+        'hasWifi': result == ConnectivityResult.wifi,
+        'hasMobile': result == ConnectivityResult.mobile,
+        'hasEthernet': result == ConnectivityResult.ethernet,
+        'hasVpn': result == ConnectivityResult.vpn,
+        'isOffline': result == ConnectivityResult.none,
       };
     } catch (e) {
       if (kDebugMode) {
@@ -249,18 +237,17 @@ class ConnectivityService {
     }
   }
 
-  /// Expose the connectivity change stream (returns List<ConnectivityResult>)
-  Stream<List<ConnectivityResult>> get onConnectivityChanged =>
+  /// Expose the connectivity change stream (returns ConnectivityResult)
+  Stream<ConnectivityResult> get onConnectivityChanged =>
       _connectivity.onConnectivityChanged;
 
   /// Expose a stream that emits boolean values for online/offline status
   Stream<bool> get onOnlineStatusChanged => _connectivity.onConnectivityChanged
-      .map((results) => _isOnlineFromResults(results));
+      .map((result) => _isOnlineFromResult(result));
 
   /// Check if the service is initialized
   bool get isInitialized => _isInitialized;
 
-  /// Get the last known connectivity results
-  List<ConnectivityResult> get lastConnectivityResults =>
-      List.from(_lastConnectivityResults);
+  /// Get the last known connectivity result
+  ConnectivityResult get lastConnectivityResult => _lastConnectivityResult;
 }

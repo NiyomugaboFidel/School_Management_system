@@ -25,8 +25,8 @@ class _ConnectivityStatusWidgetState extends State<ConnectivityStatusWidget> {
       final status = await ConnectivityService().getConnectivityStatus();
       if (mounted) {
         setState(() {
-          _connectivityStatus = status.isNotEmpty ? status.first : ConnectivityResult.none;
-          _isOnline = status.isNotEmpty && status.first != ConnectivityResult.none;
+          _connectivityStatus = status;
+          _isOnline = status != ConnectivityResult.none;
         });
       }
     } catch (e) {

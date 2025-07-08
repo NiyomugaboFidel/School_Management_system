@@ -48,7 +48,7 @@ class _DashboardScreenState extends State<DashboardScreen>
   ConnectivityResult _connectivityStatus = ConnectivityResult.none;
   bool _isOnline = false;
   // Add connectivity subscription
-  StreamSubscription<List<ConnectivityResult>>? _connectivitySubscription;
+  StreamSubscription<ConnectivityResult>? _connectivitySubscription;
 
   @override
   void initState() {
@@ -72,7 +72,7 @@ class _DashboardScreenState extends State<DashboardScreen>
     _connectivitySubscription = ConnectivityService().onConnectivityChanged
         .listen((result) async {
           setState(() {
-            _connectivityStatus = result.isNotEmpty ? result.first : ConnectivityResult.none;
+            _connectivityStatus = result;
             _isOnline = result != ConnectivityResult.none;
           });
         });
@@ -230,7 +230,7 @@ class _DashboardScreenState extends State<DashboardScreen>
     try {
       final result = await ConnectivityService().getConnectivityStatus();
       setState(() {
-        _connectivityStatus = result.isNotEmpty ? result.first : ConnectivityResult.none;
+        _connectivityStatus = result;
         _isOnline = result != ConnectivityResult.none;
       });
     } catch (e) {
