@@ -1,50 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:firebase_core/firebase_core.dart';
 import 'package:sqlite_crud_app/permission_service.dart';
 import 'package:sqlite_crud_app/services/notification_service.dart';
 import 'package:sqlite_crud_app/SQLite/database_helper.dart';
 import 'package:sqlite_crud_app/services/connectivity_service.dart';
-import 'firebase_options.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:sqlite_crud_app/services/sync_service.dart';
 
 class SplashDecider extends StatefulWidget {
   const SplashDecider({Key? key}) : super(key: key);
 
   @override
   State<SplashDecider> createState() => _SplashDeciderState();
-}
-
-// Static method to test Firebase connection from anywhere
-class FirebaseConnectionTester {
-  static Future<void> testFirebaseConnection() async {
-    try {
-      print('🧪 Testing Firebase connection...');
-
-      if (kIsWeb) {
-        print('🌐 Testing on web platform');
-      }
-
-      // Try to send test data
-      final now = DateTime.now();
-      final testData = {
-        'platform': kIsWeb ? 'web' : 'mobile',
-        'timestamp': now.toIso8601String(),
-        'message': 'Manual test from XTAP app',
-        'test_type': 'manual_connection_test',
-      };
-
-      await FirebaseFirestore.instance
-          .collection('test_connection')
-          .add(testData);
-      print('✅ Manual Firebase test successful!');
-      print('📊 Test data sent: $testData');
-    } catch (e) {
-      print('❌ Manual Firebase test failed: $e');
-      print('🔍 Error details: ${e.toString()}');
-    }
-  }
 }
 
 class _SplashDeciderState extends State<SplashDecider> {
@@ -60,16 +27,13 @@ class _SplashDeciderState extends State<SplashDecider> {
 
   Future<void> _initializeApp() async {
     try {
-      // Step 1: Initialize Firebase
-      setState(() => _status = 'Initializing Firebase...');
-      await _initializeFirebase();
-
-      // TEST: Send test data to Firestore to verify connection
-      await _sendTestDataToFirestore();
-
-      // Step 2: Initialize connectivity service and show status
+      // Step 1: Initialize connectivity service and show status
       setState(() => _status = 'Checking connectivity...');
       await _initializeConnectivity();
+
+      // Step 2: Initialize sync service (offline-first)
+      setState(() => _status = 'Initializing sync service...');
+      await _initializeSyncService();
 
       // Step 3: Initialize notifications (non-blocking)
       setState(() => _status = 'Setting up notifications...');
@@ -103,39 +67,14 @@ class _SplashDeciderState extends State<SplashDecider> {
     }
   }
 
-  Future<void> _initializeFirebase() async {
+  Future<void> _initializeSyncService() async {
     try {
-      print('🔥 Initializing Firebase...');
-      print('🌐 Platform: ${kIsWeb ? 'Web' : 'Mobile'}');
-
-      await Firebase.initializeApp(
-        options: DefaultFirebaseOptions.currentPlatform,
-      ).timeout(const Duration(seconds: 15));
-
-      print('✅ Firebase initialized successfully');
-
-      // Test if Firestore is accessible
-      if (kIsWeb) {
-        print('🌐 Testing Firestore access on web...');
-        try {
-          // Just try to access Firestore to see if it's working
-          final firestore = FirebaseFirestore.instance;
-          print('✅ Firestore instance accessible on web');
-        } catch (e) {
-          print('⚠️ Firestore might not be fully configured for web: $e');
-        }
-      }
+      print('🔄 Initializing sync service...');
+      await SyncService.instance.initialize();
+      print('✅ Sync service initialized successfully');
     } catch (e) {
-      print('❌ Firebase initialization failed: $e');
-      print('🔍 Error type: ${e.runtimeType}');
-
-      if (kIsWeb) {
-        print('🌐 Web-specific Firebase error - check your web configuration');
-        print('💡 Make sure you have the correct Firebase web configuration');
-      }
-
-      // Continue without Firebase for now
-      // Don't re-throw the error to prevent app crash
+      print('❌ Sync service initialization failed: $e');
+      // Continue without sync service - app works offline
     }
   }
 
@@ -197,43 +136,6 @@ class _SplashDeciderState extends State<SplashDecider> {
       print('Error checking login state: $e');
       if (mounted) {
         Navigator.pushReplacementNamed(context, '/login');
-      }
-    }
-  }
-
-  // Function to send test data to Firestore for connection testing
-  Future<void> _sendTestDataToFirestore() async {
-    try {
-      // Check if we're on web and handle accordingly
-      if (kIsWeb) {
-        print('🌐 Running on web platform');
-        // Add a small delay for web to ensure Firebase is fully initialized
-        await Future.delayed(const Duration(milliseconds: 500));
-      }
-
-      // Only run if Firebase is initialized
-      final now = DateTime.now();
-      final testData = {
-        'platform': kIsWeb ? 'web' : 'mobile',
-        'timestamp': now.toIso8601String(),
-        'message': 'Test data from XTAP app',
-        'app_version': '1.0.0',
-      };
-
-      await FirebaseFirestore.instance
-          .collection('test_connection')
-          .add(testData);
-      print('✅ Test data sent to Firestore successfully!');
-      print('📊 Test data: $testData');
-    } catch (e) {
-      print('❌ Failed to send test data to Firestore: $e');
-      print('🔍 Error details: ${e.toString()}');
-
-      // Don't crash the app, just log the error
-      if (kIsWeb) {
-        print(
-          '🌐 Web-specific Firebase error - this might be expected if Firebase is not fully configured for web',
-        );
       }
     }
   }

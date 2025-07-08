@@ -15,6 +15,7 @@ import '../../attendance/screens/attendance_scan_screen.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:sqlite_crud_app/services/connectivity_service.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
+import 'dart:async';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -43,9 +44,11 @@ class _DashboardScreenState extends State<DashboardScreen>
   String syncStatus = 'Checking sync status...';
   DateTime? lastSyncTime;
 
-  // Connectivity status
+  // Update connectivity status to use ConnectivityResult
   ConnectivityResult _connectivityStatus = ConnectivityResult.none;
   bool _isOnline = false;
+  // Add connectivity subscription
+  StreamSubscription<ConnectivityResult>? _connectivitySubscription;
 
   @override
   void initState() {
@@ -64,23 +67,37 @@ class _DashboardScreenState extends State<DashboardScreen>
     _checkSyncStatus();
     _initConnectivityStatus();
     _animationController.forward();
+
+    // Listen for connectivity changes using the new API
+    _connectivitySubscription = ConnectivityService().onConnectivityChanged
+        .listen((result) async {
+          setState(() {
+            _connectivityStatus = result;
+            _isOnline = result != ConnectivityResult.none;
+          });
+        });
   }
 
   @override
   void dispose() {
     _animationController.dispose();
+    _connectivitySubscription?.cancel();
     super.dispose();
   }
 
   Future<void> _initSyncService() async {
-    final db = await _dbHelper.database;
-    setState(() {
-      _syncService = SyncService(
-        firestore: FirebaseFirestore.instance,
-        localDb: db,
-      );
-      _syncServiceReady = true;
-    });
+    try {
+      await SyncService.instance.initialize();
+      setState(() {
+        _syncService = SyncService.instance;
+        _syncServiceReady = true;
+      });
+    } catch (e) {
+      print('Error initializing sync service: $e');
+      setState(() {
+        _syncServiceReady = false;
+      });
+    }
   }
 
   Future<void> _loadDashboardData() async {
@@ -154,7 +171,18 @@ class _DashboardScreenState extends State<DashboardScreen>
       isSyncing = true;
     });
     try {
-      await _syncService.syncAllData();
+      // First fetch data from Firebase to ensure we have the latest
+      final fetchResult = await _syncService.fetchAndSyncData();
+      if (!fetchResult.isSuccess) {
+        print('Warning: Data fetch failed: ${fetchResult.message}');
+      }
+
+      // Then sync local data to Firebase
+      final syncResult = await _syncService.syncAllData();
+      if (!syncResult.isSuccess) {
+        throw Exception(syncResult.message);
+      }
+
       final prefs = await SharedPreferences.getInstance();
       await prefs.setString('last_sync_time', DateTime.now().toIso8601String());
       setState(() {
@@ -200,10 +228,10 @@ class _DashboardScreenState extends State<DashboardScreen>
 
   Future<void> _initConnectivityStatus() async {
     try {
-      final status = await ConnectivityService().getConnectivityStatus();
+      final result = await ConnectivityService().getConnectivityStatus();
       setState(() {
-        _connectivityStatus = status;
-        _isOnline = status != ConnectivityResult.none;
+        _connectivityStatus = result;
+        _isOnline = result != ConnectivityResult.none;
       });
     } catch (e) {
       print('Error getting connectivity status: $e');

@@ -126,9 +126,15 @@ class DatabaseHelper {
         email TEXT UNIQUE,
         usr_name TEXT UNIQUE NOT NULL,
         usr_password TEXT NOT NULL,
+        gender TEXT DEFAULT 'Unspecified',
+        profile_image TEXT DEFAULT 'https://cdn-icons-png.flaticon.com/512/4537/4537019.png',
+        phone_number TEXT,
+        address TEXT,
+        date_of_birth TEXT,
         role TEXT NOT NULL DEFAULT 'user' CHECK (role IN ('admin', 'teacher', 'user')),
         is_active INTEGER NOT NULL DEFAULT 1 CHECK (is_active IN (0, 1)),
         last_login TEXT,
+        notes TEXT,
         created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
         updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
       )
@@ -172,11 +178,16 @@ class DatabaseHelper {
         student_id INTEGER PRIMARY KEY,
         reg_number TEXT UNIQUE NOT NULL,
         full_name TEXT NOT NULL,
+        gender TEXT DEFAULT 'Unspecified',
+        profile_image TEXT DEFAULT 'https://cdn-icons-png.flaticon.com/512/4537/4537019.png',
+        phone_number TEXT,
+        address TEXT,
+        date_of_birth TEXT,
         class_id INTEGER NOT NULL,
         barcode TEXT UNIQUE,
         nfc_tag_id TEXT UNIQUE,
-        profile_image TEXT,
         is_active INTEGER NOT NULL DEFAULT 1,
+        notes TEXT,
         created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
         updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (class_id) REFERENCES $_tableClasses(class_id) ON DELETE RESTRICT
@@ -379,6 +390,14 @@ class DatabaseHelper {
         'usr_name': 'admin',
         'usr_password': _hashPassword('admin123'),
         'role': 'admin',
+        'gender': 'Unspecified',
+        'profile_image':
+            'https://cdn-icons-png.flaticon.com/512/4537/4537019.png',
+        'phone_number': '',
+        'address': '',
+        'date_of_birth': '',
+        'is_active': 1,
+        'notes': '',
         'created_at': now,
         'updated_at': now,
       },
@@ -388,6 +407,14 @@ class DatabaseHelper {
         'usr_name': 'teacher',
         'usr_password': _hashPassword('teacher123'),
         'role': 'teacher',
+        'gender': 'Male',
+        'profile_image':
+            'https://cdn-icons-png.flaticon.com/512/4537/4537019.png',
+        'phone_number': '',
+        'address': '',
+        'date_of_birth': '',
+        'is_active': 1,
+        'notes': '',
         'created_at': now,
         'updated_at': now,
       },
@@ -397,6 +424,14 @@ class DatabaseHelper {
         'usr_name': 'user',
         'usr_password': _hashPassword('user123'),
         'role': 'user',
+        'gender': 'Female',
+        'profile_image':
+            'https://cdn-icons-png.flaticon.com/512/4537/4537019.png',
+        'phone_number': '',
+        'address': '',
+        'date_of_birth': '',
+        'is_active': 1,
+        'notes': '',
         'created_at': now,
         'updated_at': now,
       },
@@ -406,6 +441,14 @@ class DatabaseHelper {
         'usr_name': 'fidele',
         'usr_password': _hashPassword('1234678'),
         'role': 'admin',
+        'gender': 'Male',
+        'profile_image':
+            'https://cdn-icons-png.flaticon.com/512/4537/4537019.png',
+        'phone_number': '',
+        'address': '',
+        'date_of_birth': '',
+        'is_active': 1,
+        'notes': '',
         'created_at': now,
         'updated_at': now,
       },
@@ -506,15 +549,53 @@ class DatabaseHelper {
     final firstName = firstNames[index - 1];
     final lastName = lastNames[random.nextInt(lastNames.length)];
     final classId = random.nextInt(18) + 1;
+    // Alternate gender for demo
+    final gender = index % 2 == 0 ? 'Female' : 'Male';
+    // Demo profile images by gender
+    final profileImage =
+        gender == 'Male'
+            ? 'https://cdn-icons-png.flaticon.com/512/4537/4537019.png'
+            : 'https://cdn-icons-png.flaticon.com/512/4730/4730811.png'; // You can use a different icon for female if desired
+    // Demo addresses
+    final addresses = [
+      '123 Main St, Kigali',
+      '456 Elm St, Huye',
+      '789 Oak St, Musanze',
+      '101 Pine St, Rubavu',
+      '202 Maple St, Rusizi',
+      '303 Cedar St, Nyagatare',
+      '404 Birch St, Rwamagana',
+      '505 Spruce St, Gicumbi',
+      '606 Willow St, Muhanga',
+      '707 Aspen St, Nyamasheke',
+    ];
+    final address = addresses[(index - 1) % addresses.length];
+    // Demo phone numbers
+    final phoneNumber =
+        '+2507${random.nextInt(100000000).toString().padLeft(8, '0')}';
+    // Demo date of birth (random between 2005-2010)
+    final year = 2005 + random.nextInt(6);
+    final month = 1 + random.nextInt(12);
+    final day = 1 + random.nextInt(28);
+    final dateOfBirth =
+        '$year-${month.toString().padLeft(2, '0')}-${day.toString().padLeft(2, '0')}';
+    // Demo notes
+    final notes = 'Demo student for testing.';
 
     return {
       'student_id': studentId,
       'reg_number': 'REG${studentId.toString().substring(4)}',
       'full_name': '$firstName $lastName',
+      'gender': gender,
+      'profile_image': profileImage,
+      'phone_number': phoneNumber,
+      'address': address,
+      'date_of_birth': dateOfBirth,
       'class_id': classId,
       'barcode': 'BC$studentId',
       'nfc_tag_id': 'NFC$studentId',
-      'profile_image': null,
+      'is_active': 1,
+      'notes': notes,
       'created_at': now,
       'updated_at': now,
     };

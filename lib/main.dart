@@ -14,18 +14,21 @@ import 'package:sqlite_crud_app/permission_service.dart';
 import 'package:sqlite_crud_app/splash_decider.dart';
 import 'package:sqlite_crud_app/test_splash.dart';
 import 'package:sqlite_crud_app/test_firebase_page.dart';
+import 'package:sqlite_crud_app/test_sync_system.dart';
 import 'package:sqlite_crud_app/navigation_menu.dart' show NavigationController;
-import 'package:firebase_core/firebase_core.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'services/notification_service.dart';
 import 'services/connectivity_service.dart';
-
-import 'firebase_options.dart';
+import 'package:firebase_core/firebase_core.dart';
 
 Future<void> main() async {
   print('🚀 App starting...');
   WidgetsFlutterBinding.ensureInitialized();
   print('✅ Flutter binding initialized');
+
+  // Initialize Firebase
+  await Firebase.initializeApp();
+  print('✅ Firebase initialized');
 
   // Configure Flutter for better performance
   if (!kIsWeb) {
@@ -98,6 +101,7 @@ class MyApp extends StatelessWidget {
             '/home': (context) => const NavigationMenu(),
             '/settings': (context) => const SettingsScreen(),
             '/test-firebase': (context) => const TestFirebasePage(),
+            '/test-sync': (context) => const TestSyncSystem(),
           },
           title: 'XTAP',
           theme: _buildLightTheme(),

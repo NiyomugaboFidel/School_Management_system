@@ -1,49 +1,62 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Allow read/write access to test_connection collection for testing
+    // === Top-level collections ===
     match /test_connection/{document} {
       allow read, write: if true;
     }
-    
-    // Allow read/write access to notifications collection
     match /notifications/{document} {
       allow read, write: if true;
     }
-    
-    // Allow read/write access to events collection
     match /events/{document} {
       allow read, write: if true;
     }
-    
-    // Allow read/write access to global_settings collection
     match /global_settings/{document} {
       allow read, write: if true;
     }
-    
-    // Allow read/write access to students collection (for sync)
     match /students/{document} {
       allow read, write: if true;
     }
-    
-    // Allow read/write access to payments collection (for sync)
     match /payments/{document} {
       allow read, write: if true;
     }
-    
-    // Allow read/write access to attendance collection (for sync)
     match /attendance/{document} {
       allow read, write: if true;
     }
-    
-    // Allow read/write access to audit_logs collection
     match /audit_logs/{document} {
       allow read, write: if true;
     }
-    
-    // Default rule - deny all other access
+
+    // === Nested collections under school_data/{schoolId} ===
+    match /school_data/{schoolId}/attendance_logs/{document} {
+      allow read, write: if true;
+    }
+    match /school_data/{schoolId}/students/{document} {
+      allow read, write: if true;
+    }
+    match /school_data/{schoolId}/payments/{document} {
+      allow read, write: if true;
+    }
+    match /school_data/{schoolId}/discipline/{document} {
+      allow read, write: if true;
+    }
+    match /school_data/{schoolId}/users/{document} {
+      allow read, write: if true;
+    }
+    match /school_data/{schoolId}/sync_logs/{document} {
+      allow read, write: if true;
+    }
+    match /school_data/{schoolId}/school_data/{document} {
+      allow read, write: if true;
+    }
+
+    // === Add more nested collections as needed ===
+    // Example: match /school_data/{schoolId}/your_collection/{document} { allow read, write: if true; }
+
+    // === Default: deny all other access ===
     match /{document=**} {
       allow read, write: if false;
     }
   }
 }
+// WARNING: These rules allow full access for development only. Do not use in production!

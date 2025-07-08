@@ -10,6 +10,7 @@ import 'package:sqlite_crud_app/Views/home/screens/attendance_record_list.dart';
 import 'package:sqlite_crud_app/models/class.dart';
 import 'package:sqlite_crud_app/models/level.dart';
 import '../../../Components/attendance_result_popup.dart';
+import '../../../services/attendance_service.dart';
 
 class AttendanceScreen extends StatefulWidget {
   @override
@@ -139,7 +140,7 @@ class _AttendanceScreenState extends State<AttendanceScreen>
 
   Future<void> _markAttendance(Student student, String status) async {
     try {
-      final result = await DatabaseHelper().markAttendance(
+      final result = await AttendanceService.instance.markAttendance(
         student.studentId,
         status,
         'CurrentUser',
@@ -148,38 +149,24 @@ class _AttendanceScreenState extends State<AttendanceScreen>
       // Handle AttendanceResult object
       bool success = result.isSuccess;
 
+      // Always show popup after local mark
+      AttendanceResultPopup.show(
+        context,
+        studentName: student.fullName,
+        studentId: student.studentId.toString(),
+        gender: 'N/A',
+        imageUrl: student.profileImage ?? '',
+        status: status,
+        success: success,
+      );
+
+      // Reload attendance data from local DB
+      await _loadStudentsAndAttendance();
+      setState(() {});
+
       if (success) {
-        // Show success popup immediately
-        showAttendancePopup(
-          context,
-          studentName: student.fullName,
-          studentId: student.studentId.toString(),
-          gender: 'N/A',
-          imageUrl: student.profileImage ?? '',
-          status: status,
-          success: true,
-        );
-
-        // Reload attendance data
-        await _loadStudentsAndAttendance();
-
-        // Haptic feedback
         HapticFeedback.lightImpact();
-
-        // Update UI immediately
-        setState(() {});
       } else {
-        // Show failure popup
-        showAttendancePopup(
-          context,
-          studentName: student.fullName,
-          studentId: student.studentId.toString(),
-          gender: 'N/A',
-          imageUrl: student.profileImage ?? '',
-          status: status,
-          success: false,
-        );
-
         // Show error snackbar
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -195,7 +182,7 @@ class _AttendanceScreenState extends State<AttendanceScreen>
       }
     } catch (e) {
       // Show failure popup for exceptions
-      showAttendancePopup(
+      AttendanceResultPopup.show(
         context,
         studentName: student.fullName,
         studentId: student.studentId.toString(),

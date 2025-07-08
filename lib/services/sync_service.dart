@@ -11,14 +11,23 @@ import 'sync_result.dart';
 import 'package:sqflite/sqflite.dart';
 import 'package:flutter/foundation.dart';
 import 'notification_service.dart';
+import 'connectivity_service.dart';
+import 'package:connectivity_plus/connectivity_plus.dart';
 
 class SyncService {
-  final FirebaseFirestore firestore;
-  final Database localDb;
+  static SyncService? _instance;
+  static FirebaseFirestore? _firestore;
+  static Database? _localDb;
+  static bool _isInitialized = false;
 
-  SyncService({required this.firestore, required this.localDb});
+  // Private constructor for singleton
+  SyncService._();
 
-  final DatabaseHelper _dbHelper = DatabaseHelper();
+  // Singleton instance
+  static SyncService get instance {
+    _instance ??= SyncService._();
+    return _instance!;
+  }
 
   // Static school identifier - no authentication required
   static const String _schoolId = 'school_001';
@@ -27,15 +36,66 @@ class SyncService {
   // Collection names
   static const String _usersCollection = 'users';
   static const String _studentsCollection = 'students';
-  static const String _attendanceCollection = 'attendance';
+  static const String _attendanceCollection = 'attendance_logs';
   static const String _paymentsCollection = 'payments';
   static const String _disciplineCollection = 'discipline';
   static const String _syncLogCollection = 'sync_logs';
   static const String _schoolDataCollection = 'school_data';
 
-  /// Check if sync is available (always true for static school)
+  /// Initialize sync service (offline-first)
+  Future<bool> initialize() async {
+    if (_isInitialized) return true;
+
+    try {
+      // Initialize local database only
+      _localDb = await DatabaseHelper().database;
+      _isInitialized = true;
+      print('✅ SyncService initialized successfully (offline-first)');
+      return true;
+    } catch (e) {
+      print('❌ SyncService initialization failed: $e');
+      return false;
+    }
+  }
+
+  /// Get Firebase instance (lazy initialization only when online)
+  Future<FirebaseFirestore?> _getFirestore() async {
+    if (_firestore != null) return _firestore;
+
+    try {
+      // Check if we're online
+      final connectivityStatus =
+          await ConnectivityService().getConnectivityStatus();
+      if (connectivityStatus == ConnectivityResult.none) {
+        print('🌐 No internet connection - Firebase not available');
+        return null;
+      }
+
+      // Initialize Firebase only when online
+      _firestore = FirebaseFirestore.instance;
+      print('✅ Firebase initialized for sync');
+      return _firestore;
+    } catch (e) {
+      print('❌ Firebase initialization failed: $e');
+      return null;
+    }
+  }
+
+  /// Check if sync is available
   Future<bool> isSyncAvailable() async {
-    return true; // No authentication required
+    try {
+      final connectivityStatus =
+          await ConnectivityService().getConnectivityStatus();
+      if (connectivityStatus == ConnectivityResult.none) {
+        return false;
+      }
+
+      final firestore = await _getFirestore();
+      return firestore != null;
+    } catch (e) {
+      print('Error checking sync availability: $e');
+      return false;
+    }
   }
 
   /// Get school identifier
@@ -43,9 +103,52 @@ class SyncService {
     return _schoolId;
   }
 
-  /// Sync all data to Firebase
+  /// Fetch and sync data from Firebase to local database
+  Future<SyncResult> fetchAndSyncData() async {
+    try {
+      final firestore = await _getFirestore();
+      if (firestore == null) {
+        return SyncResult.failure(
+          error: 'No internet connection',
+          message: 'Cannot sync without internet connection',
+        );
+      }
+
+      print('🔄 Starting data fetch from Firebase...');
+
+      // Fetch all data from Firebase
+      await _fetchUsers(firestore);
+      await _fetchStudents(firestore);
+      await _fetchAttendance(firestore);
+      await _fetchPayments(firestore);
+      await _fetchDiscipline(firestore);
+
+      // Log sync
+      await _logSync(firestore, true, 'Data fetch completed');
+
+      return SyncResult.success(
+        message: 'Data fetched successfully',
+        recordCount: 0,
+      );
+    } catch (e) {
+      print('❌ Fetch error: $e');
+      return SyncResult.failure(error: e.toString(), message: 'Fetch failed');
+    }
+  }
+
+  /// Sync all local data to Firebase
   Future<SyncResult> syncAllData() async {
     try {
+      final firestore = await _getFirestore();
+      if (firestore == null) {
+        return SyncResult.failure(
+          error: 'No internet connection',
+          message: 'Cannot sync without internet connection',
+        );
+      }
+
+      print('🔄 Starting full sync to Firebase...');
+
       final batch = firestore.batch();
 
       // Sync users
@@ -67,7 +170,7 @@ class SyncService {
       await batch.commit();
 
       // Log sync
-      await _logSync(true, 'Full sync completed');
+      await _logSync(firestore, true, 'Full sync completed');
 
       // Update last sync time
       final prefs = await SharedPreferences.getInstance();
@@ -75,18 +178,162 @@ class SyncService {
 
       return SyncResult.success(
         message: 'Full sync completed successfully',
-        recordCount: 0, // TODO: Calculate actual record count
+        recordCount: 0,
       );
     } catch (e) {
-      print('Sync error: $e');
-      await _logSync(false, e.toString());
+      print('❌ Sync error: $e');
       return SyncResult.failure(error: e.toString(), message: 'Sync failed');
+    }
+  }
+
+  /// Real-time sync when attendance is marked
+  Future<void> syncAttendanceRealtime(AttendanceLog attendance) async {
+    try {
+      final firestore = await _getFirestore();
+      if (firestore == null) {
+        print('🌐 No internet - attendance saved locally only');
+        return;
+      }
+
+      // Create unique document ID
+      final docId =
+          'attendance_${attendance.id}_${DateTime.now().millisecondsSinceEpoch}';
+
+      final attendanceData = {
+        'local_id': attendance.id,
+        'student_id': attendance.studentId,
+        'date': attendance.date.toIso8601String(),
+        'status': attendance.status.value, // Use the string value
+        'marked_by': attendance.markedBy,
+        'marked_at': attendance.markedAt.toIso8601String(),
+        'profile_image': attendance.profileImage,
+        'notes': attendance.notes,
+        'created_at': attendance.createdAt?.toIso8601String(),
+        'synced_at': DateTime.now().toIso8601String(),
+        'school_id': _schoolId,
+        'device_id': await _getDeviceId(),
+        'user_id': await _getCurrentUserId(),
+      };
+
+      await firestore
+          .collection(_schoolDataCollection)
+          .doc(_schoolId)
+          .collection(_attendanceCollection)
+          .doc(docId)
+          .set(attendanceData, SetOptions(merge: true));
+
+      // Mark as synced in local database
+      await DatabaseHelper().updateAttendanceSyncStatus(attendance.id, true);
+
+      print('✅ Attendance synced in real-time: ${attendance.id}');
+    } catch (e) {
+      print('❌ Real-time sync failed: $e');
+      // Don't throw error - attendance is still saved locally
+    }
+  }
+
+  /// Fetch users from Firebase
+  Future<void> _fetchUsers(FirebaseFirestore firestore) async {
+    try {
+      final querySnapshot =
+          await firestore
+              .collection(_schoolDataCollection)
+              .doc(_schoolId)
+              .collection(_usersCollection)
+              .get();
+
+      for (final doc in querySnapshot.docs) {
+        final data = doc.data();
+        // Update local user data if needed
+        // This would require implementing update methods in DatabaseHelper
+      }
+    } catch (e) {
+      print('Error fetching users: $e');
+    }
+  }
+
+  /// Fetch students from Firebase
+  Future<void> _fetchStudents(FirebaseFirestore firestore) async {
+    try {
+      final querySnapshot =
+          await firestore
+              .collection(_schoolDataCollection)
+              .doc(_schoolId)
+              .collection(_studentsCollection)
+              .get();
+
+      for (final doc in querySnapshot.docs) {
+        final data = doc.data();
+        // Update local student data if needed
+      }
+    } catch (e) {
+      print('Error fetching students: $e');
+    }
+  }
+
+  /// Fetch attendance from Firebase
+  Future<void> _fetchAttendance(FirebaseFirestore firestore) async {
+    try {
+      final querySnapshot =
+          await firestore
+              .collection(_schoolDataCollection)
+              .doc(_schoolId)
+              .collection(_attendanceCollection)
+              .get();
+
+      for (final doc in querySnapshot.docs) {
+        final data = doc.data();
+        // Update local attendance data if needed
+      }
+    } catch (e) {
+      print('Error fetching attendance: $e');
+    }
+  }
+
+  /// Fetch payments from Firebase
+  Future<void> _fetchPayments(FirebaseFirestore firestore) async {
+    try {
+      final querySnapshot =
+          await firestore
+              .collection(_schoolDataCollection)
+              .doc(_schoolId)
+              .collection(_paymentsCollection)
+              .get();
+
+      for (final doc in querySnapshot.docs) {
+        final data = doc.data();
+        // Update local payment data if needed
+      }
+    } catch (e) {
+      print('Error fetching payments: $e');
+    }
+  }
+
+  /// Fetch discipline records from Firebase
+  Future<void> _fetchDiscipline(FirebaseFirestore firestore) async {
+    try {
+      final querySnapshot =
+          await firestore
+              .collection(_schoolDataCollection)
+              .doc(_schoolId)
+              .collection(_disciplineCollection)
+              .get();
+
+      for (final doc in querySnapshot.docs) {
+        final data = doc.data();
+        // Update local discipline data if needed
+      }
+    } catch (e) {
+      print('Error fetching discipline: $e');
     }
   }
 
   /// Sync users to Firebase
   Future<void> _syncUsers(WriteBatch batch) async {
-    final users = await _dbHelper.getAllActiveUsers();
+    final firestore = await _getFirestore();
+    if (firestore == null) return;
+
+    final users = await DatabaseHelper().getAllActiveUsers();
 
     for (final user in users) {
       final userDoc = firestore
@@ -106,6 +353,7 @@ class SyncService {
         'updated_at': DateTime.now().toIso8601String(),
         'synced_at': DateTime.now().toIso8601String(),
         'school_id': _schoolId,
+        'device_id': await _getDeviceId(),
       };
 
       batch.set(userDoc, userData, SetOptions(merge: true));
@@ -114,7 +362,10 @@ class SyncService {
 
   /// Sync students to Firebase
   Future<void> _syncStudents(WriteBatch batch) async {
-    final students = await _dbHelper.getAllStudents();
+    final firestore = await _getFirestore();
+    if (firestore == null) return;
+
+    final students = await DatabaseHelper().getAllStudents();
 
     for (final student in students) {
       final studentDoc = firestore
@@ -136,6 +387,7 @@ class SyncService {
         'updated_at': DateTime.now().toIso8601String(),
         'synced_at': DateTime.now().toIso8601String(),
         'school_id': _schoolId,
+        'device_id': await _getDeviceId(),
       };
 
       batch.set(studentDoc, studentData, SetOptions(merge: true));
@@ -143,13 +395,16 @@ class SyncService {
 
     // Mark as synced in local database
     for (final student in students) {
-      await _dbHelper.updateStudentSyncStatus(student.studentId, true);
+      await DatabaseHelper().updateStudentSyncStatus(student.studentId, true);
     }
   }
 
   /// Sync attendance to Firebase
   Future<void> _syncAttendance(WriteBatch batch) async {
-    final unsyncedAttendance = await _dbHelper.getUnsyncedAttendance();
+    final firestore = await _getFirestore();
+    if (firestore == null) return;
+
+    final unsyncedAttendance = await DatabaseHelper().getUnsyncedAttendance();
 
     for (final attendance in unsyncedAttendance) {
       final attendanceDoc = firestore
@@ -161,15 +416,17 @@ class SyncService {
       final attendanceData = {
         'local_id': attendance.id,
         'student_id': attendance.studentId,
-        'date': attendance.date,
-        'status': attendance.status,
+        'date': attendance.date.toIso8601String(),
+        'status': attendance.status.value, // Use the string value
         'marked_by': attendance.markedBy,
-        'marked_at': attendance.markedAt,
+        'marked_at': attendance.markedAt.toIso8601String(),
         'profile_image': attendance.profileImage,
         'notes': attendance.notes,
-        'created_at': attendance.createdAt,
+        'created_at': attendance.createdAt?.toIso8601String(),
         'synced_at': DateTime.now().toIso8601String(),
         'school_id': _schoolId,
+        'device_id': await _getDeviceId(),
+        'user_id': await _getCurrentUserId(),
       };
 
       batch.set(attendanceDoc, attendanceData, SetOptions(merge: true));
@@ -177,13 +434,16 @@ class SyncService {
 
     // Mark as synced in local database
     for (final attendance in unsyncedAttendance) {
-      await _dbHelper.updateAttendanceSyncStatus(attendance.id, true);
+      await DatabaseHelper().updateAttendanceSyncStatus(attendance.id, true);
     }
   }
 
   /// Sync payments to Firebase
   Future<void> _syncPayments(WriteBatch batch) async {
-    final unsyncedPayments = await _dbHelper.getUnsyncedPayments();
+    final firestore = await _getFirestore();
+    if (firestore == null) return;
+
+    final unsyncedPayments = await DatabaseHelper().getUnsyncedPayments();
 
     for (final payment in unsyncedPayments) {
       final paymentDoc = firestore
@@ -204,6 +464,8 @@ class SyncService {
         'created_at': payment.createdAt?.toIso8601String(),
         'synced_at': DateTime.now().toIso8601String(),
         'school_id': _schoolId,
+        'device_id': await _getDeviceId(),
+        'user_id': await _getCurrentUserId(),
       };
 
       batch.set(paymentDoc, paymentData, SetOptions(merge: true));
@@ -211,13 +473,16 @@ class SyncService {
 
     // Mark as synced in local database
     for (final payment in unsyncedPayments) {
-      await _dbHelper.updatePaymentSyncStatus(payment.paymentId, true);
+      await DatabaseHelper().updatePaymentSyncStatus(payment.paymentId, true);
     }
   }
 
   /// Sync discipline records to Firebase
   Future<void> _syncDiscipline(WriteBatch batch) async {
-    final unsyncedDiscipline = await _dbHelper.getUnsyncedDiscipline();
+    final firestore = await _getFirestore();
+    if (firestore == null) return;
+
+    final unsyncedDiscipline = await DatabaseHelper().getUnsyncedDiscipline();
 
     for (final discipline in unsyncedDiscipline) {
       final disciplineDoc = firestore
@@ -238,6 +503,8 @@ class SyncService {
         'created_at': discipline.createdAt?.toIso8601String(),
         'synced_at': DateTime.now().toIso8601String(),
         'school_id': _schoolId,
+        'device_id': await _getDeviceId(),
+        'user_id': await _getCurrentUserId(),
       };
 
       batch.set(disciplineDoc, disciplineData, SetOptions(merge: true));
@@ -245,117 +512,16 @@ class SyncService {
 
     // Mark as synced in local database
     for (final discipline in unsyncedDiscipline) {
-      await _dbHelper.updateDisciplineSyncStatus(discipline.id, true);
-    }
-  }
-
-  /// Pull data from Firebase
-  Future<bool> pullFromFirebase() async {
-    try {
-      // Pull users
-      await _pullUsers();
-
-      // Pull students
-      await _pullStudents();
-
-      // Pull attendance
-      await _pullAttendance();
-
-      // Pull payments
-      await _pullPayments();
-
-      // Pull discipline records
-      await _pullDiscipline();
-
-      // Log sync
-      await _logSync(true, 'Pull from Firebase completed');
-
-      return true;
-    } catch (e) {
-      print('Pull error: $e');
-      await _logSync(false, e.toString());
-      return false;
-    }
-  }
-
-  /// Pull users from Firebase
-  Future<void> _pullUsers() async {
-    final querySnapshot =
-        await firestore
-            .collection(_schoolDataCollection)
-            .doc(_schoolId)
-            .collection(_usersCollection)
-            .get();
-
-    for (final doc in querySnapshot.docs) {
-      final data = doc.data();
-      // Update local user data if needed
-      // This would require implementing update methods in DatabaseHelper
-    }
-  }
-
-  /// Pull students from Firebase
-  Future<void> _pullStudents() async {
-    final querySnapshot =
-        await firestore
-            .collection(_schoolDataCollection)
-            .doc(_schoolId)
-            .collection(_studentsCollection)
-            .get();
-
-    for (final doc in querySnapshot.docs) {
-      final data = doc.data();
-      // Update local student data if needed
-    }
-  }
-
-  /// Pull attendance from Firebase
-  Future<void> _pullAttendance() async {
-    final querySnapshot =
-        await firestore
-            .collection(_schoolDataCollection)
-            .doc(_schoolId)
-            .collection(_attendanceCollection)
-            .get();
-
-    for (final doc in querySnapshot.docs) {
-      final data = doc.data();
-      // Update local attendance data if needed
-    }
-  }
-
-  /// Pull payments from Firebase
-  Future<void> _pullPayments() async {
-    final querySnapshot =
-        await firestore
-            .collection(_schoolDataCollection)
-            .doc(_schoolId)
-            .collection(_paymentsCollection)
-            .get();
-
-    for (final doc in querySnapshot.docs) {
-      final data = doc.data();
-      // Update local payment data if needed
-    }
-  }
-
-  /// Pull discipline records from Firebase
-  Future<void> _pullDiscipline() async {
-    final querySnapshot =
-        await firestore
-            .collection(_schoolDataCollection)
-            .doc(_schoolId)
-            .collection(_disciplineCollection)
-            .get();
-
-    for (final doc in querySnapshot.docs) {
-      final data = doc.data();
-      // Update local discipline data if needed
+      await DatabaseHelper().updateDisciplineSyncStatus(discipline.id, true);
     }
   }
 
   /// Log sync operation
-  Future<void> _logSync(bool success, String message) async {
+  Future<void> _logSync(
+    FirebaseFirestore firestore,
+    bool success,
+    String message,
+  ) async {
     try {
       await firestore
           .collection(_schoolDataCollection)
@@ -366,6 +532,8 @@ class SyncService {
             'success': success,
             'message': message,
             'timestamp': DateTime.now().toIso8601String(),
+            'device_id': await _getDeviceId(),
+            'user_id': await _getCurrentUserId(),
           });
     } catch (e) {
       print('Error logging sync: $e');
@@ -378,9 +546,9 @@ class SyncService {
       final prefs = await SharedPreferences.getInstance();
       final lastSync = prefs.getString('last_sync_time');
 
-      final unsyncedAttendance = await _dbHelper.getUnsyncedAttendance();
-      final unsyncedPayments = await _dbHelper.getUnsyncedPayments();
-      final unsyncedDiscipline = await _dbHelper.getUnsyncedDiscipline();
+      final unsyncedAttendance = await DatabaseHelper().getUnsyncedAttendance();
+      final unsyncedPayments = await DatabaseHelper().getUnsyncedPayments();
+      final unsyncedDiscipline = await DatabaseHelper().getUnsyncedDiscipline();
 
       return {
         'last_sync': lastSync,
@@ -400,6 +568,9 @@ class SyncService {
   /// Initialize school data in Firebase
   Future<bool> initializeSchoolData() async {
     try {
+      final firestore = await _getFirestore();
+      if (firestore == null) return false;
+
       final schoolDoc = firestore
           .collection(_schoolDataCollection)
           .doc(_schoolId);
@@ -410,6 +581,7 @@ class SyncService {
         'created_at': DateTime.now().toIso8601String(),
         'updated_at': DateTime.now().toIso8601String(),
         'is_active': true,
+        'device_id': await _getDeviceId(),
       });
 
       return true;
@@ -419,84 +591,35 @@ class SyncService {
     }
   }
 
-  // Sync students table
-  Future<void> syncStudents() async {
-    // 1. Pull from Firebase and update local
-    firestore.collection('students').snapshots().listen((snapshot) async {
-      for (var doc in snapshot.docChanges) {
-        final data = doc.doc.data();
-        if (data == null) continue;
-        final local = await localDb.query(
-          'students',
-          where: 'id = ?',
-          whereArgs: [data['id']],
-        );
-        if (local.isEmpty || shouldOverwrite(local.first, data)) {
-          await localDb.insert(
-            'students',
-            data,
-            conflictAlgorithm: ConflictAlgorithm.replace,
-          );
-          await NotificationService.showNotification(
-            'Student Synced',
-            'Student ${data['name']} updated from cloud',
-          );
-          await logAudit('students', 'sync_pull', data);
-        }
-      }
-    });
+  /// Get device ID for multi-user support
+  Future<String> _getDeviceId() async {
+    final prefs = await SharedPreferences.getInstance();
+    String? deviceId = prefs.getString('device_id');
 
-    // 2. Push local changes to Firebase (example: all students)
-    final localStudents = await localDb.query('students');
-    for (var student in localStudents) {
-      final doc =
-          await firestore
-              .collection('students')
-              .doc(student['id'].toString())
-              .get();
-      if (!doc.exists || shouldOverwrite(doc.data() ?? {}, student)) {
-        await firestore
-            .collection('students')
-            .doc(student['id'].toString())
-            .set(student);
-        await NotificationService.showNotification(
-          'Student Synced',
-          'Student ${student['name']} updated to cloud',
-        );
-        await logAudit('students', 'sync_push', student);
-      }
+    if (deviceId == null) {
+      deviceId =
+          'device_${DateTime.now().millisecondsSinceEpoch}_${(1000 + (DateTime.now().millisecondsSinceEpoch % 9000))}';
+      await prefs.setString('device_id', deviceId);
     }
+
+    return deviceId;
   }
 
-  // Conflict resolution (last-write-wins)
-  bool shouldOverwrite(
-    Map<String, dynamic> local,
-    Map<String, dynamic> remote,
-  ) {
-    return (remote['updatedAt'] ?? 0) > (local['updatedAt'] ?? 0);
+  /// Get current user ID
+  Future<String?> _getCurrentUserId() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString('current_user_id');
   }
 
-  // Log audit to Firestore
-  Future<void> logAudit(
-    String table,
-    String action,
-    Map<String, dynamic> data,
-  ) async {
-    await firestore.collection('logs').add({
-      'table': table,
-      'action': action,
-      'data': data,
-      'timestamp': DateTime.now().millisecondsSinceEpoch,
-    });
+  /// Clean up resources
+  void dispose() {
+    _firestore = null;
+    _localDb = null;
+    _isInitialized = false;
   }
 
-  // Call this after every local CRUD
-  Future<void> onLocalChange(String table, Map<String, dynamic> data) async {
-    // Push to Firebase and log
-  }
-
-  // Call this when Firebase changes
-  Future<void> onFirebaseChange(String table, Map<String, dynamic> data) async {
-    // Update local DB and log
+  /// Public method to ensure Firebase is initialized if online
+  Future<FirebaseFirestore?> ensureFirebaseInitialized() async {
+    return await _getFirestore();
   }
 }

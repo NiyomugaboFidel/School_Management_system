@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'splash_decider.dart';
 
 class TestFirebasePage extends StatefulWidget {
   const TestFirebasePage({Key? key}) : super(key: key);
@@ -21,14 +20,27 @@ class _TestFirebasePageState extends State<TestFirebasePage> {
     });
 
     try {
-      await FirebaseConnectionTester.testFirebaseConnection();
+      // Test Firebase initialization
+      final now = DateTime.now();
+      final testData = {
+        'platform': kIsWeb ? 'web' : 'mobile',
+        'timestamp': now.toIso8601String(),
+        'message': 'Firebase connection test',
+        'test_type': 'connection_test',
+      };
+
+      await FirebaseFirestore.instance
+          .collection('test_connection')
+          .add(testData);
       setState(() {
         _status = '✅ Firebase test completed! Check console for details.';
       });
+      print('📊 Connection test data: $testData');
     } catch (e) {
       setState(() {
         _status = '❌ Test failed: $e';
       });
+      print('🔍 Connection test error: $e');
     } finally {
       setState(() {
         _isTesting = false;

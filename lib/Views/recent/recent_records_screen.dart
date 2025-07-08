@@ -53,14 +53,18 @@ class _RecentRecordsScreenState extends State<RecentRecordsScreen> {
   }
 
   Future<void> _initSyncService() async {
-    final db = await _dbHelper.database;
-    setState(() {
-      _syncService = SyncService(
-        firestore: FirebaseFirestore.instance,
-        localDb: db,
-      );
-      _syncServiceReady = true;
-    });
+  try {
+      await SyncService.instance.initialize();
+      setState(() {
+        _syncService = SyncService.instance;
+        _syncServiceReady = true;
+      });
+    } catch (e) {
+      print('Error initializing sync service: $e');
+      setState(() {
+        _syncServiceReady = false;
+      });
+    }
   }
 
   Future<void> _loadSyncStatus() async {

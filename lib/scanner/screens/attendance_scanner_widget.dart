@@ -8,6 +8,8 @@ import 'package:sqlite_crud_app/Components/br_code.dart';
 import 'package:sqlite_crud_app/Components/nfc_widget.dart';
 import 'package:sqlite_crud_app/services/auth_services.dart';
 import 'package:sqlite_crud_app/SQLite/database_helper.dart';
+import 'package:sqlite_crud_app/services/attendance_service.dart'
+    as attendance_service;
 import 'package:sqlite_crud_app/scanner/screens/scanner_screen.dart'
     show ScannerType;
 import '../../../Components/attendance_result_popup.dart';
@@ -80,7 +82,9 @@ class _AttendanceScannerWidgetState extends State<AttendanceScannerWidget>
 
   Future<void> _loadTodayAttendance() async {
     try {
-      final attendanceList = await AttendanceService().getTodayAttendance();
+      final attendanceList =
+          await attendance_service.AttendanceService.instance
+              .getTodayAttendance();
       setState(() {
         _todayAttendance = attendanceList;
       });
@@ -147,18 +151,15 @@ class _AttendanceScannerWidgetState extends State<AttendanceScannerWidget>
       final currentTime = TimeOfDay.now();
       final attendanceStatus = _determineAttendanceStatus(currentTime);
       final status = attendanceStatus.value; // Use capitalized value for DB
-      final success = await DatabaseHelper().markAttendance(
-        student.studentId,
-        status,
-        widget.currentUserName,
-      );
+      final success = await attendance_service.AttendanceService.instance
+          .markAttendance(student.studentId, status, widget.currentUserName);
       print(
         '[DEBUG] Attendance mark result: ${success == true ? 'SUCCESS' : 'FAILURE'}',
       );
       if (success == true) {
         await _loadTodayAttendance();
         HapticFeedback.heavyImpact();
-        showAttendancePopup(
+        AttendanceResultPopup.show(
           context,
           studentName: student!.fullName,
           studentId: student!.studentId.toString(),
@@ -168,7 +169,7 @@ class _AttendanceScannerWidgetState extends State<AttendanceScannerWidget>
           success: true,
         );
       } else {
-        showAttendancePopup(
+        AttendanceResultPopup.show(
           context,
           studentName: student!.fullName,
           studentId: student!.studentId.toString(),

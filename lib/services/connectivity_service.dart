@@ -40,7 +40,7 @@ class ConnectivityService {
 
   /// Handle connectivity changes
   void _handleConnectivityChange(ConnectivityResult result) {
-    print('🌐 Connectivity changed: ${_lastConnectivityResult} -> $result');
+    print('🌐 Connectivity changed: \\${_lastConnectivityResult} -> $result');
 
     // Don't show notification on first initialization
     if (_lastConnectivityResult == null) {
@@ -57,27 +57,27 @@ class ConnectivityService {
 
   /// Show appropriate notification based on connectivity status
   void _showConnectivityNotification(ConnectivityResult result) {
-    switch (result) {
-      case ConnectivityResult.wifi:
-      case ConnectivityResult.mobile:
-      case ConnectivityResult.ethernet:
-        _notificationService.showOnlineNotification();
-        break;
-      case ConnectivityResult.none:
-        _notificationService.showOfflineNotification();
-        break;
-      default:
-        // For other cases, treat as offline
-        _notificationService.showOfflineNotification();
-        break;
+    final isOnline = _isOnlineFromResult(result);
+
+    if (isOnline) {
+      _notificationService.showOnlineNotification();
+    } else {
+      _notificationService.showOfflineNotification();
     }
+  }
+
+  /// Check if result indicates online status
+  bool _isOnlineFromResult(ConnectivityResult result) {
+    return result == ConnectivityResult.wifi ||
+        result == ConnectivityResult.mobile ||
+        result == ConnectivityResult.ethernet;
   }
 
   /// Check if currently online
   Future<bool> isOnline() async {
     try {
       final result = await _connectivity.checkConnectivity();
-      return result != ConnectivityResult.none;
+      return _isOnlineFromResult(result);
     } catch (e) {
       print('Error checking connectivity: $e');
       return false;
@@ -110,4 +110,8 @@ class ConnectivityService {
     _connectivitySubscription = null;
     _isInitialized = false;
   }
+
+  /// Expose the connectivity change stream
+  Stream<ConnectivityResult> get onConnectivityChanged =>
+      _connectivity.onConnectivityChanged;
 }

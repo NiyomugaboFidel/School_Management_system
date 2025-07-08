@@ -65,14 +65,18 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   Future<void> _initSyncService() async {
-    final db = await DatabaseHelper().database;
-    setState(() {
-      _syncService = SyncService(
-        firestore: FirebaseFirestore.instance,
-        localDb: db,
-      );
-      _syncServiceReady = true;
-    });
+    try {
+      await SyncService.instance.initialize();
+      setState(() {
+        _syncService = SyncService.instance;
+        _syncServiceReady = true;
+      });
+    } catch (e) {
+      print('Error initializing sync service: $e');
+      setState(() {
+        _syncServiceReady = false;
+      });
+    }
   }
 
   Future<void> _loadSettings() async {
@@ -324,6 +328,31 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   const SizedBox(height: 16),
                   _buildHolidayCalendar(),
                 ],
+              ],
+            ),
+
+            const SizedBox(height: 16),
+
+            _buildSectionCard(
+              title: 'System Testing',
+              icon: Icons.bug_report,
+              children: [
+                _buildButtonTile(
+                  title: 'Test Sync System',
+                  subtitle: 'Test the new offline-first sync system',
+                  icon: Icons.sync,
+                  onTap: () {
+                    Navigator.pushNamed(context, '/test-sync');
+                  },
+                ),
+                _buildButtonTile(
+                  title: 'Test Firebase Connection',
+                  subtitle: 'Test Firebase connectivity',
+                  icon: Icons.cloud,
+                  onTap: () {
+                    Navigator.pushNamed(context, '/test-firebase');
+                  },
+                ),
               ],
             ),
 

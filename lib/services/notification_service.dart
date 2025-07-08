@@ -10,10 +10,8 @@ class NotificationService {
   factory NotificationService() => _instance;
   NotificationService._internal();
 
-  static final FlutterLocalNotificationsPlugin _notifications =
-      FlutterLocalNotificationsPlugin();
-  static final FirebaseMessaging _firebaseMessaging =
-      FirebaseMessaging.instance;
+  static FlutterLocalNotificationsPlugin? _notifications;
+  static FirebaseMessaging? _firebaseMessaging;
 
   // Notification channels
   static const String _attendanceChannel = 'attendance_channel';
@@ -22,6 +20,9 @@ class NotificationService {
 
   /// Initialize notification service
   Future<void> initialize() async {
+    _notifications = FlutterLocalNotificationsPlugin();
+    _firebaseMessaging = FirebaseMessaging.instance;
+
     const androidSettings = AndroidInitializationSettings(
       '@mipmap/ic_launcher',
     );
@@ -36,7 +37,7 @@ class NotificationService {
       iOS: iosSettings,
     );
 
-    await _notifications.initialize(
+    await _notifications!.initialize(
       initSettings,
       onDidReceiveNotificationResponse: _onNotificationTapped,
     );
@@ -46,7 +47,7 @@ class NotificationService {
     // Only run firebase_messaging code on non-web platforms
     if (!kIsWeb) {
       try {
-        await _firebaseMessaging.requestPermission();
+        await _firebaseMessaging!.requestPermission();
 
         // Set up message listener with error handling
         FirebaseMessaging.onMessage.listen(
@@ -103,19 +104,19 @@ class NotificationService {
       enableVibration: false,
     );
 
-    await _notifications
+    await _notifications!
         .resolvePlatformSpecificImplementation<
           AndroidFlutterLocalNotificationsPlugin
         >()
         ?.createNotificationChannel(androidChannel);
 
-    await _notifications
+    await _notifications!
         .resolvePlatformSpecificImplementation<
           AndroidFlutterLocalNotificationsPlugin
         >()
         ?.createNotificationChannel(syncChannel);
 
-    await _notifications
+    await _notifications!
         .resolvePlatformSpecificImplementation<
           AndroidFlutterLocalNotificationsPlugin
         >()
@@ -147,7 +148,7 @@ class NotificationService {
       ),
     );
 
-    await _notifications.show(
+    await _notifications!.show(
       DateTime.now().millisecondsSinceEpoch.remainder(100000),
       'Attendance Marked',
       '$studentName marked as $status at $time',
@@ -177,7 +178,7 @@ class NotificationService {
       ),
     );
 
-    await _notifications.show(
+    await _notifications!.show(
       DateTime.now().millisecondsSinceEpoch.remainder(100000) + 1,
       'Sync Completed',
       'Successfully synced $recordCount records to cloud',
@@ -207,7 +208,7 @@ class NotificationService {
       ),
     );
 
-    await _notifications.show(
+    await _notifications!.show(
       DateTime.now().millisecondsSinceEpoch.remainder(100000) + 2,
       'Sync Failed',
       'Failed to sync data: $error',
@@ -237,7 +238,7 @@ class NotificationService {
       ),
     );
 
-    await _notifications.show(
+    await _notifications!.show(
       DateTime.now().millisecondsSinceEpoch.remainder(100000) + 3,
       'Online',
       'You are now online. Data will sync automatically.',
@@ -267,7 +268,7 @@ class NotificationService {
       ),
     );
 
-    await _notifications.show(
+    await _notifications!.show(
       DateTime.now().millisecondsSinceEpoch.remainder(100000) + 4,
       'Offline',
       'You are offline. Data will sync when connection is restored.',
@@ -297,7 +298,7 @@ class NotificationService {
       ),
     );
 
-    await _notifications.show(
+    await _notifications!.show(
       DateTime.now().millisecondsSinceEpoch.remainder(100000) + 5,
       'Holiday Today',
       'Today is $holidayName. No attendance marking.',
@@ -331,7 +332,7 @@ class NotificationService {
       ),
     );
 
-    await _notifications.show(
+    await _notifications!.show(
       DateTime.now().millisecondsSinceEpoch.remainder(100000) + 6,
       'Duplicate Attendance',
       '$studentName already marked as $existingStatus. New status: $newStatus',
@@ -364,12 +365,12 @@ class NotificationService {
 
   /// Cancel all notifications
   Future<void> cancelAllNotifications() async {
-    await _notifications.cancelAll();
+    await _notifications!.cancelAll();
   }
 
   /// Cancel specific notification
   Future<void> cancelNotification(int id) async {
-    await _notifications.cancel(id);
+    await _notifications!.cancel(id);
   }
 
   static Future<void> showNotification(String title, String body) async {
@@ -383,7 +384,7 @@ class NotificationService {
     const NotificationDetails platformChannelSpecifics = NotificationDetails(
       android: androidPlatformChannelSpecifics,
     );
-    await _notifications.show(0, title, body, platformChannelSpecifics);
+    await _notifications!.show(0, title, body, platformChannelSpecifics);
     await logNotification(title, body);
   }
 
