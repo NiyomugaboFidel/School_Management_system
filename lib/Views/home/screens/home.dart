@@ -14,7 +14,7 @@ import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
 import '../../../SQLite/database_helper.dart';
 import 'add_student_card_screen.dart';
-import '../../../notification_page.dart';
+import '../../notification/screens/notification_page.dart';
 import 'calendar_page.dart';
 import 'package:sqlite_crud_app/Components/welcome_cards_widget.dart';
 

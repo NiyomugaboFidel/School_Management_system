@@ -12,20 +12,19 @@ Future<void> requestAllPermissions() async {
       Permission.phone.request(),
       Permission.sensors.request(),
     ]);
-    
+
     // Request more sensitive permissions separately
     try {
       await Permission.manageExternalStorage.request();
     } catch (e) {
       print('External storage permission failed: $e');
     }
-    
+
     try {
       await Permission.ignoreBatteryOptimizations.request();
     } catch (e) {
       print('Battery optimization permission failed: $e');
     }
-    
   } catch (e) {
     print('Error requesting permissions: $e');
     // Continue without permissions rather than blocking the app

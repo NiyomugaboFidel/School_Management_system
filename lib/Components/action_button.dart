@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:sqlite_crud_app/constants/app_colors.dart';
 
 class ActionButton extends StatelessWidget {
   final String title;

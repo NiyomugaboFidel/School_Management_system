@@ -4,11 +4,7 @@ import 'package:intl/intl.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:sqlite_crud_app/SQLite/database_helper.dart';
 import 'package:sqlite_crud_app/models/attendance.dart';
-import 'package:sqlite_crud_app/models/payment.dart';
-import 'package:sqlite_crud_app/models/discipline.dart';
 import 'package:sqlite_crud_app/constants/app_colors.dart';
-import 'package:sqlite_crud_app/services/sync_service.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 
 class RecentRecordsScreen extends StatefulWidget {
   const RecentRecordsScreen({Key? key}) : super(key: key);
@@ -21,8 +17,6 @@ class _RecentRecordsScreenState extends State<RecentRecordsScreen> {
   String _searchQuery = '';
   final _searchController = TextEditingController();
   final DatabaseHelper _dbHelper = DatabaseHelper();
-  late SyncService _syncService;
-  bool _syncServiceReady = false;
 
   // Calendar state
   DateTime _focusedDay = DateTime.now();
@@ -40,7 +34,6 @@ class _RecentRecordsScreenState extends State<RecentRecordsScreen> {
   @override
   void initState() {
     super.initState();
-    _initSyncService();
     _selectedDay = DateTime.now();
     _loadAttendanceForDate(_selectedDay!);
     _loadSyncStatus();
@@ -50,21 +43,6 @@ class _RecentRecordsScreenState extends State<RecentRecordsScreen> {
   void dispose() {
     _searchController.dispose();
     super.dispose();
-  }
-
-  Future<void> _initSyncService() async {
-  try {
-      await SyncService.instance.initialize();
-      setState(() {
-        _syncService = SyncService.instance;
-        _syncServiceReady = true;
-      });
-    } catch (e) {
-      print('Error initializing sync service: $e');
-      setState(() {
-        _syncServiceReady = false;
-      });
-    }
   }
 
   Future<void> _loadSyncStatus() async {

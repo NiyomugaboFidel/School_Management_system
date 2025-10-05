@@ -5,7 +5,7 @@ import 'package:sqlite_crud_app/permission_service.dart';
 import 'package:sqlite_crud_app/services/notification_service.dart';
 import 'package:sqlite_crud_app/SQLite/database_helper.dart';
 import 'package:sqlite_crud_app/services/connectivity_service.dart';
-import 'package:sqlite_crud_app/services/sync_service.dart';
+import 'package:sqlite_crud_app/services/enhanced_sync_service.dart';
 
 class SplashDecider extends StatefulWidget {
   const SplashDecider({Key? key}) : super(key: key);
@@ -69,9 +69,9 @@ class _SplashDeciderState extends State<SplashDecider> {
 
   Future<void> _initializeSyncService() async {
     try {
-      print('🔄 Initializing sync service...');
-      await SyncService.instance.initialize();
-      print('✅ Sync service initialized successfully');
+      print('🔄 Initializing enhanced sync service...');
+      await EnhancedSyncService.instance.initialize();
+      print('✅ Enhanced sync service initialized successfully');
     } catch (e) {
       print('❌ Sync service initialization failed: $e');
       // Continue without sync service - app works offline
@@ -110,11 +110,16 @@ class _SplashDeciderState extends State<SplashDecider> {
   void _initializeDatabase() {
     try {
       // Initialize database in background
-      DatabaseHelper().database.catchError((e) {
-        print('Database initialization failed: $e');
-      });
+      DatabaseHelper().database
+          .then((_) {
+            print('✅ Database initialized');
+          })
+          .catchError((e) {
+            print('❌ Database initialization failed: $e');
+            return null;
+          });
     } catch (e) {
-      print('Error initializing database: $e');
+      print('❌ Error initializing database: $e');
     }
   }
 

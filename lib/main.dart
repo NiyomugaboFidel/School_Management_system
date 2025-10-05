@@ -10,14 +10,9 @@ import 'package:sqlite_crud_app/constants/app_colors.dart';
 import 'package:sqlite_crud_app/navigation_menu.dart';
 import 'package:sqlite_crud_app/utils/user_session.dart';
 import 'package:sqlite_crud_app/utils/theme_provider.dart';
-import 'package:sqlite_crud_app/permission_service.dart';
 import 'package:sqlite_crud_app/splash_decider.dart';
-import 'package:sqlite_crud_app/test_splash.dart';
-import 'package:sqlite_crud_app/test_firebase_page.dart';
-import 'package:sqlite_crud_app/test_sync_system.dart';
 import 'package:sqlite_crud_app/navigation_menu.dart' show NavigationController;
 import 'package:shared_preferences/shared_preferences.dart';
-import 'services/notification_service.dart';
 import 'services/connectivity_service.dart';
 import 'package:firebase_core/firebase_core.dart';
 
@@ -100,8 +95,6 @@ class MyApp extends StatelessWidget {
             '/profile': (context) => ProfileScreen(),
             '/home': (context) => const NavigationMenu(),
             '/settings': (context) => const SettingsScreen(),
-            '/test-firebase': (context) => const TestFirebasePage(),
-            '/test-sync': (context) => const TestSyncSystem(),
           },
           title: 'XTAP',
           theme: _buildLightTheme(),

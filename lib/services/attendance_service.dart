@@ -1,7 +1,7 @@
 import '../SQLite/database_helper.dart';
 import '../models/attendance.dart';
 import '../models/attendance_result.dart';
-import 'sync_service.dart';
+import 'enhanced_sync_service.dart';
 
 class AttendanceService {
   static AttendanceService? _instance;
@@ -49,9 +49,15 @@ class AttendanceService {
           if (attendanceRecord.isNotEmpty) {
             final attendance = AttendanceLog.fromMap(attendanceRecord.first);
 
-            // Sync to Firebase in real-time
-            await SyncService.instance.syncAttendanceRealtime(attendance);
-            print('✅ Attendance synced in real-time: ${attendance.id}');
+            // Queue for sync with enhanced sync service
+            await EnhancedSyncService.instance.addToSyncQueue(
+              tableName: 'attendance_logs',
+              operation: 'insert',
+              data: attendance.toMap(),
+              userId: markedBy,
+              recordId: attendance.id.toString(),
+            );
+            print('✅ Attendance queued for sync: ${attendance.id}');
           }
         } catch (e) {
           print('❌ Real-time sync failed: $e');

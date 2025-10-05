@@ -4,16 +4,10 @@ import 'package:local_auth/local_auth.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:sqlite_crud_app/constants/app_colors.dart';
 import 'package:sqlite_crud_app/utils/theme_provider.dart';
-import 'package:sqlite_crud_app/utils/user_session.dart';
-import 'package:sqlite_crud_app/SQLite/database_helper.dart';
-import 'package:sqlite_crud_app/services/sync_service.dart';
-import 'package:sqlite_crud_app/services/backup_service.dart';
-import 'package:sqlite_crud_app/Components/app_bar.dart';
-import 'package:table_calendar/table_calendar.dart';
+import 'package:sqlite_crud_app/services/enhanced_sync_service.dart';
 import 'package:intl/intl.dart';
 import '../../../services/holiday_service.dart';
 import '../../../services/notification_service.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({Key? key}) : super(key: key);
@@ -24,8 +18,7 @@ class SettingsScreen extends StatefulWidget {
 
 class _SettingsScreenState extends State<SettingsScreen> {
   final HolidayService _holidayService = HolidayService();
-  final NotificationService _notificationService = NotificationService();
-  late SyncService _syncService;
+  late EnhancedSyncService _syncService;
   bool _syncServiceReady = false;
   final LocalAuthentication _localAuth = LocalAuthentication();
 
@@ -66,9 +59,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   Future<void> _initSyncService() async {
     try {
-      await SyncService.instance.initialize();
+      await EnhancedSyncService.instance.initialize();
       setState(() {
-        _syncService = SyncService.instance;
+        _syncService = EnhancedSyncService.instance;
         _syncServiceReady = true;
       });
     } catch (e) {
@@ -142,15 +135,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
       _isLoading = true;
     });
     try {
-      final result = await _syncService.syncAllData();
-      if (result.isSuccess) {
-        _showSnackBar('Sync completed: ${result.message}', AppColors.success);
-      } else {
-        _showSnackBar(
-          'Sync failed: ${result.error ?? result.message}',
-          AppColors.error,
-        );
-      }
+      await _syncService.syncNow();
+      _showSnackBar('Sync completed successfully', AppColors.success);
     } catch (e) {
       _showSnackBar('Sync error: $e', AppColors.error);
     } finally {
@@ -328,31 +314,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   const SizedBox(height: 16),
                   _buildHolidayCalendar(),
                 ],
-              ],
-            ),
-
-            const SizedBox(height: 16),
-
-            _buildSectionCard(
-              title: 'System Testing',
-              icon: Icons.bug_report,
-              children: [
-                _buildButtonTile(
-                  title: 'Test Sync System',
-                  subtitle: 'Test the new offline-first sync system',
-                  icon: Icons.sync,
-                  onTap: () {
-                    Navigator.pushNamed(context, '/test-sync');
-                  },
-                ),
-                _buildButtonTile(
-                  title: 'Test Firebase Connection',
-                  subtitle: 'Test Firebase connectivity',
-                  icon: Icons.cloud,
-                  onTap: () {
-                    Navigator.pushNamed(context, '/test-firebase');
-                  },
-                ),
               ],
             ),
 

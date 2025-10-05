@@ -782,7 +782,7 @@ class _LoginScreenState extends State<LoginScreen> {
                           ),
                         ),
                         TextSpan(
-                          text: 'Gate Attendance',
+                          text: 'School System',
                           style: TextStyle(
                             fontSize: 28,
                             fontWeight: FontWeight.bold,
@@ -797,7 +797,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
                   // Description
                   Text(
-                    'Fast and secure gate-based attendance system',
+                    'Fast and secure high school system',
                     style: TextStyle(fontSize: 16, color: Colors.grey.shade600),
                   ),
 

@@ -1,4 +1,4 @@
-import 'dart:convert';
+// Statistics model for dashboard analytics
 
 /// Statistics model class
 class Statistics {
@@ -43,14 +43,21 @@ class Statistics {
       lateCount: map['late_count']?.toInt() ?? 0,
       excusedCount: map['excused_count']?.toInt() ?? 0,
       disciplineCases: map['discipline_cases']?.toInt() ?? 0,
-      totalDisciplineMarksDeducted: map['total_discipline_marks_deducted']?.toInt() ?? 0,
-      attendancePercentage: (map['attendance_percentage'] is double)
-        ? map['attendance_percentage']
-        : (map['attendance_percentage'] is int)
-          ? (map['attendance_percentage'] as int).toDouble()
-          : double.tryParse(map['attendance_percentage']?.toString() ?? '0.0') ?? 0.0,
+      totalDisciplineMarksDeducted:
+          map['total_discipline_marks_deducted']?.toInt() ?? 0,
+      attendancePercentage:
+          (map['attendance_percentage'] is double)
+              ? map['attendance_percentage']
+              : (map['attendance_percentage'] is int)
+              ? (map['attendance_percentage'] as int).toDouble()
+              : double.tryParse(
+                    map['attendance_percentage']?.toString() ?? '0.0',
+                  ) ??
+                  0.0,
       behaviorRating: map['behavior_rating']?.toString(),
-      lastCalculated: DateTime.tryParse(map['last_calculated']?.toString() ?? '') ?? DateTime.now(),
+      lastCalculated:
+          DateTime.tryParse(map['last_calculated']?.toString() ?? '') ??
+          DateTime.now(),
     );
   }
 
@@ -97,7 +104,8 @@ class Statistics {
       lateCount: lateCount ?? this.lateCount,
       excusedCount: excusedCount ?? this.excusedCount,
       disciplineCases: disciplineCases ?? this.disciplineCases,
-      totalDisciplineMarksDeducted: totalDisciplineMarksDeducted ?? this.totalDisciplineMarksDeducted,
+      totalDisciplineMarksDeducted:
+          totalDisciplineMarksDeducted ?? this.totalDisciplineMarksDeducted,
       attendancePercentage: attendancePercentage ?? this.attendancePercentage,
       behaviorRating: behaviorRating ?? this.behaviorRating,
       lastCalculated: lastCalculated ?? this.lastCalculated,
@@ -105,5 +113,6 @@ class Statistics {
   }
 
   @override
-  String toString() => 'Statistics(id: $id, studentId: $studentId, year: $academicYear, attendance: $attendancePercentage, behavior: $behaviorRating)';
+  String toString() =>
+      'Statistics(id: $id, studentId: $studentId, year: $academicYear, attendance: $attendancePercentage, behavior: $behaviorRating)';
 }

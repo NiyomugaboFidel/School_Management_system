@@ -1,62 +1,117 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // === Top-level collections ===
+    
+    // Helper functions for authentication and authorization
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    function isAdmin() {
+      return isAuthenticated() && 
+             get(/databases/$(database)/documents/school_data/$(schoolId)/users/$(request.auth.uid)).data.role == 'admin';
+    }
+    
+    function isTeacher() {
+      return isAuthenticated() && 
+             get(/databases/$(database)/documents/school_data/$(schoolId)/users/$(request.auth.uid)).data.role in ['admin', 'teacher'];
+    }
+    
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+    
+    // Test connection (development only - remove in production)
     match /test_connection/{document} {
       allow read, write: if true;
     }
-    match /notifications/{document} {
-      allow read, write: if true;
-    }
-    match /events/{document} {
-      allow read, write: if true;
-    }
+    
+    // Global settings - read by all authenticated users, write by admin only
     match /global_settings/{document} {
-      allow read, write: if true;
-    }
-    match /students/{document} {
-      allow read, write: if true;
-    }
-    match /payments/{document} {
-      allow read, write: if true;
-    }
-    match /attendance/{document} {
-      allow read, write: if true;
-    }
-    match /audit_logs/{document} {
-      allow read, write: if true;
+      allow read: if isAuthenticated();
+      allow write: if isAdmin();
     }
     
-    // === Nested collections under school_data/{schoolId} ===
-    match /school_data/{schoolId}/attendance_logs/{document} {
-      allow read, write: if true;
+    // Events - read by all authenticated users, write by teachers/admin
+    match /events/{document} {
+      allow read: if isAuthenticated();
+      allow write: if isTeacher();
     }
-    match /school_data/{schoolId}/students/{document} {
-      allow read, write: if true;
+    
+    // Notifications - users can read their own notifications
+    match /notifications/{userId}/{notification} {
+      allow read: if isAuthenticated() && isOwner(userId);
+      allow write: if isTeacher();
     }
-    match /school_data/{schoolId}/payments/{document} {
-      allow read, write: if true;
+    
+    // School data - scoped by school ID
+    match /school_data/{schoolId} {
+      
+      // Users collection
+      match /users/{userId} {
+        allow read: if isAuthenticated();
+        allow create: if isAdmin();
+        allow update: if isAdmin() || isOwner(userId);
+        allow delete: if isAdmin();
+      }
+      
+      // Students collection
+      match /students/{studentId} {
+        allow read: if isAuthenticated();
+        allow write: if isTeacher();
+      }
+      
+      // Attendance logs
+      match /attendance_logs/{attendanceId} {
+        allow read: if isAuthenticated();
+        allow create: if isAuthenticated(); // Any authenticated user can mark attendance
+        allow update, delete: if isTeacher();
+      }
+      
+      // Payments
+      match /payments/{paymentId} {
+        allow read: if isAuthenticated();
+        allow write: if isTeacher();
+      }
+      
+      // Discipline records
+      match /discipline/{disciplineId} {
+        allow read: if isAuthenticated();
+        allow write: if isTeacher();
+      }
+      
+      // Sync logs - for debugging and audit trail
+      match /sync_logs/{logId} {
+        allow read: if isAuthenticated();
+        allow create: if isAuthenticated();
+        allow update, delete: if isAdmin();
+      }
+      
+      // School metadata
+      match /school_data/{document} {
+        allow read: if isAuthenticated();
+        allow write: if isAdmin();
+      }
     }
-    match /school_data/{schoolId}/discipline/{document} {
-      allow read, write: if true;
+    
+    // Audit logs - admin only
+    match /audit_logs/{logId} {
+      allow read: if isAdmin();
+      allow create: if isAuthenticated();
+      allow update, delete: if false; // Audit logs are immutable
     }
-    match /school_data/{schoolId}/users/{document} {
-      allow read, write: if true;
-    }
-    match /school_data/{schoolId}/sync_logs/{document} {
-      allow read, write: if true;
-    }
-    match /school_data/{schoolId}/school_data/{document} {
-      allow read, write: if true;
-    }
-
-    // === Add more nested collections as needed ===
-    // Example: match /school_data/{schoolId}/your_collection/{document} { allow read, write: if true; }
-
-    // === Default: deny all other access ===
+    
+    // Default deny all other access
     match /{document=**} {
       allow read, write: if false;
     }
   }
 }
-// WARNING: These rules allow full access for development only. Do not use in production!
+
+// PRODUCTION NOTES:
+// 1. Remove test_connection rule before deploying to production
+// 2. Implement proper user authentication with Firebase Auth
+// 3. Ensure all users have a role field in their user document
+// 4. Consider adding rate limiting for write operations
+// 5. Add validation rules for data structure and types
+// 6. Monitor Firestore usage and set up billing alerts

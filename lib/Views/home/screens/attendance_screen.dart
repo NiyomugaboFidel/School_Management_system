@@ -151,17 +151,17 @@ class _AttendanceScreenState extends State<AttendanceScreen>
 
       // Always show popup after local mark
       AttendanceResultPopup.show(
-          context,
-          studentName: student.fullName,
-          studentId: student.studentId.toString(),
-          gender: 'N/A',
-          imageUrl: student.profileImage ?? '',
-          status: status,
+        context,
+        studentName: student.fullName,
+        studentId: student.studentId.toString(),
+        gender: 'N/A',
+        imageUrl: student.profileImage ?? '',
+        status: status,
         success: success,
-        );
+      );
 
       // Reload attendance data from local DB
-        await _loadStudentsAndAttendance();
+      await _loadStudentsAndAttendance();
       setState(() {});
 
       if (success) {
@@ -207,112 +207,185 @@ class _AttendanceScreenState extends State<AttendanceScreen>
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      children: [
-        Container(
-          color: AppColors.scaffoldWithBoxBackground,
-          child: TabBar(
-            controller: _tabController,
-            labelColor: AppColors.primary,
-            unselectedLabelColor: AppColors.textLight,
-            indicatorColor: AppColors.primary,
-            indicatorWeight: 3,
-            tabs: const [
-              Tab(text: 'Mark Attendance'),
-              Tab(text: 'Today\'s Records'),
-            ],
+    final isDarkMode = Theme.of(context).brightness == Brightness.dark;
+
+    return Scaffold(
+      backgroundColor:
+          isDarkMode
+              ? AppColors.scaffoldBackgroundDark
+              : AppColors.scaffoldBackground,
+      appBar: AppBar(
+        title: const Text(
+          'Attendance Management',
+          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+        ),
+        backgroundColor: AppColors.primary500,
+        elevation: 0,
+        iconTheme: const IconThemeData(color: Colors.white),
+        flexibleSpace: Container(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: [AppColors.primary500, AppColors.primary600],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
           ),
         ),
-        Expanded(
-          child: TabBarView(
-            controller: _tabController,
-            children: [
-              // Mark Attendance Tab
-              isLoading
-                  ? const Center(child: CircularProgressIndicator())
-                  : selectedClass == null
-                  ? ClassList(
-                    classes: classes,
-                    onClassSelected: (c) async {
-                      setState(() => selectedClass = c);
-                      await _loadStudentsAndAttendance();
-                    },
-                    selectedClassId: selectedClass?.classId,
-                    searchQuery: searchQuery,
-                    onSearchChanged: _onClassSearchChanged,
-                    studentCounts: _studentCounts,
-                    attendanceCounts: _attendanceCounts,
-                  )
-                  : Column(
-                    children: [
-                      Row(
-                        children: [
-                          IconButton(
-                            icon: const Icon(Icons.arrow_back),
-                            onPressed: _backToClassList,
-                          ),
-                          Text(
-                            selectedClass?.fullName ?? '',
-                            style: const TextStyle(fontWeight: FontWeight.bold),
-                          ),
-                        ],
-                      ),
-                      Expanded(
-                        child: StudentList(
-                          students: students,
-                          attendanceStatus: {
-                            for (var log in todayAttendance)
-                              log.studentId: log.status.value,
-                          },
-                          onMarkAttendance: (student, status) async {
-                            await _markAttendance(student, status);
-                          },
-                        ),
-                      ),
-                    ],
-                  ),
-              // Today's Records Tab
-              isLoading
-                  ? const Center(child: CircularProgressIndicator())
-                  : selectedClass == null
-                  ? ClassList(
-                    classes: classes,
-                    onClassSelected: (c) async {
-                      setState(() => selectedClass = c);
-                      await _loadStudentsAndAttendance();
-                    },
-                    selectedClassId: selectedClass?.classId,
-                    searchQuery: searchQuery,
-                    onSearchChanged: _onClassSearchChanged,
-                    studentCounts: _studentCounts,
-                    attendanceCounts: _attendanceCounts,
-                  )
-                  : Column(
-                    children: [
-                      Row(
-                        children: [
-                          IconButton(
-                            icon: const Icon(Icons.arrow_back),
-                            onPressed: _backToClassList,
-                          ),
-                          Text(
-                            selectedClass?.fullName ?? '',
-                            style: const TextStyle(fontWeight: FontWeight.bold),
-                          ),
-                        ],
-                      ),
-                      Expanded(
-                        child: AttendanceRecordList(
-                          records: todayAttendance,
-                          studentMap: {for (var s in students) s.studentId: s},
-                        ),
-                      ),
-                    ],
-                  ),
-            ],
-          ),
+        bottom: TabBar(
+          controller: _tabController,
+          labelColor: Colors.white,
+          unselectedLabelColor: Colors.white70,
+          indicatorColor: Colors.white,
+          indicatorWeight: 3,
+          tabs: const [
+            Tab(text: 'Mark Attendance'),
+            Tab(text: 'Today\'s Records'),
+          ],
         ),
-      ],
+      ),
+      body: TabBarView(
+        controller: _tabController,
+        children: [
+          // Mark Attendance Tab
+          isLoading
+              ? Center(
+                child: CircularProgressIndicator(color: AppColors.primary500),
+              )
+              : selectedClass == null
+              ? ClassList(
+                classes: classes,
+                onClassSelected: (c) async {
+                  setState(() => selectedClass = c);
+                  await _loadStudentsAndAttendance();
+                },
+                selectedClassId: selectedClass?.classId,
+                searchQuery: searchQuery,
+                onSearchChanged: _onClassSearchChanged,
+                studentCounts: _studentCounts,
+                attendanceCounts: _attendanceCounts,
+              )
+              : Column(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 8,
+                    ),
+                    decoration: BoxDecoration(
+                      color:
+                          isDarkMode ? AppColors.cardColorDark : Colors.white,
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.05),
+                          blurRadius: 4,
+                          offset: const Offset(0, 2),
+                        ),
+                      ],
+                    ),
+                    child: Row(
+                      children: [
+                        IconButton(
+                          icon: const Icon(Icons.arrow_back),
+                          onPressed: _backToClassList,
+                          color:
+                              isDarkMode ? Colors.white : AppColors.primary500,
+                        ),
+                        Text(
+                          selectedClass?.fullName ?? '',
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 16,
+                            color:
+                                isDarkMode
+                                    ? AppColors.textDarkDark
+                                    : AppColors.textDark,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Expanded(
+                    child: StudentList(
+                      students: students,
+                      attendanceStatus: {
+                        for (var log in todayAttendance)
+                          log.studentId: log.status.value,
+                      },
+                      onMarkAttendance: (student, status) async {
+                        await _markAttendance(student, status);
+                      },
+                    ),
+                  ),
+                ],
+              ),
+          // Today's Records Tab
+          isLoading
+              ? Center(
+                child: CircularProgressIndicator(color: AppColors.primary500),
+              )
+              : selectedClass == null
+              ? ClassList(
+                classes: classes,
+                onClassSelected: (c) async {
+                  setState(() => selectedClass = c);
+                  await _loadStudentsAndAttendance();
+                },
+                selectedClassId: selectedClass?.classId,
+                searchQuery: searchQuery,
+                onSearchChanged: _onClassSearchChanged,
+                studentCounts: _studentCounts,
+                attendanceCounts: _attendanceCounts,
+              )
+              : Column(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 8,
+                    ),
+                    decoration: BoxDecoration(
+                      color:
+                          isDarkMode ? AppColors.cardColorDark : Colors.white,
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.05),
+                          blurRadius: 4,
+                          offset: const Offset(0, 2),
+                        ),
+                      ],
+                    ),
+                    child: Row(
+                      children: [
+                        IconButton(
+                          icon: const Icon(Icons.arrow_back),
+                          onPressed: _backToClassList,
+                          color:
+                              isDarkMode ? Colors.white : AppColors.primary500,
+                        ),
+                        Text(
+                          selectedClass?.fullName ?? '',
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 16,
+                            color:
+                                isDarkMode
+                                    ? AppColors.textDarkDark
+                                    : AppColors.textDark,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Expanded(
+                    child: AttendanceRecordList(
+                      records: todayAttendance,
+                      studentMap: {for (var s in students) s.studentId: s},
+                    ),
+                  ),
+                ],
+              ),
+        ],
+      ),
     );
   }
 }

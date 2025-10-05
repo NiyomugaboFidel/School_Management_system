@@ -5,14 +5,11 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../../../constants/app_colors.dart';
 import '../../../SQLite/database_helper.dart';
 import '../../../utils/user_session.dart';
-import '../../../services/sync_service.dart';
+import '../../../services/enhanced_sync_service.dart';
 import '../../../models/attendance.dart';
+import '../../../Components/service_options_dialog.dart';
 import 'add_student_card_screen.dart';
-import 'attendance_screen.dart';
-import 'payment_screen.dart';
-import 'discipline_screen.dart';
 import '../../attendance/screens/attendance_scan_screen.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:sqlite_crud_app/services/connectivity_service.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'dart:async';
@@ -30,7 +27,7 @@ class _DashboardScreenState extends State<DashboardScreen>
   late Animation<double> _fadeAnimation;
 
   final DatabaseHelper _dbHelper = DatabaseHelper();
-  late SyncService _syncService;
+  late EnhancedSyncService _syncService;
   bool _syncServiceReady = false;
 
   // Statistics data
@@ -87,9 +84,9 @@ class _DashboardScreenState extends State<DashboardScreen>
 
   Future<void> _initSyncService() async {
     try {
-      await SyncService.instance.initialize();
+      await EnhancedSyncService.instance.initialize();
       setState(() {
-        _syncService = SyncService.instance;
+        _syncService = EnhancedSyncService.instance;
         _syncServiceReady = true;
       });
     } catch (e) {
@@ -171,17 +168,7 @@ class _DashboardScreenState extends State<DashboardScreen>
       isSyncing = true;
     });
     try {
-      // First fetch data from Firebase to ensure we have the latest
-      final fetchResult = await _syncService.fetchAndSyncData();
-      if (!fetchResult.isSuccess) {
-        print('Warning: Data fetch failed: ${fetchResult.message}');
-      }
-
-      // Then sync local data to Firebase
-      final syncResult = await _syncService.syncAllData();
-      if (!syncResult.isSuccess) {
-        throw Exception(syncResult.message);
-      }
+      await _syncService.syncNow();
 
       final prefs = await SharedPreferences.getInstance();
       await prefs.setString('last_sync_time', DateTime.now().toIso8601String());
@@ -243,13 +230,13 @@ class _DashboardScreenState extends State<DashboardScreen>
     final userSession = Provider.of<UserSession>(context);
     final isDarkMode = Theme.of(context).brightness == Brightness.dark;
 
-    return Scaffold(
-      backgroundColor:
-          isDarkMode
-              ? AppColors.scaffoldBackgroundDark
-              : AppColors.scaffoldBackground,
-      body: RefreshIndicator(
-        onRefresh: _loadDashboardData,
+    return RefreshIndicator(
+      onRefresh: _loadDashboardData,
+      child: Container(
+        color:
+            isDarkMode
+                ? AppColors.scaffoldBackgroundDark
+                : AppColors.scaffoldBackground,
         child: CustomScrollView(
           slivers: [
             // Dashboard Content
@@ -266,23 +253,23 @@ class _DashboardScreenState extends State<DashboardScreen>
                       const SizedBox(height: 24),
 
                       // Today's Attendance Summary
-                      _buildTodayAttendanceSection(),
+                      _buildTodayAttendanceSection(isDarkMode),
                       const SizedBox(height: 24),
 
                       // Statistics Cards
-                      _buildStatisticsSection(),
+                      _buildStatisticsSection(isDarkMode),
                       const SizedBox(height: 24),
 
                       // Quick Actions
-                      _buildQuickActionsSection(),
+                      _buildQuickActionsSection(isDarkMode),
                       const SizedBox(height: 24),
 
                       // Sync Status
-                      _buildSyncStatusSection(),
+                      _buildSyncStatusSection(isDarkMode),
                       const SizedBox(height: 24),
 
                       // Connectivity Status
-                      _buildConnectivityStatus(),
+                      _buildConnectivityStatus(isDarkMode),
                     ],
                   ),
                 ),
@@ -361,15 +348,15 @@ class _DashboardScreenState extends State<DashboardScreen>
     );
   }
 
-  Widget _buildTodayAttendanceSection() {
+  Widget _buildTodayAttendanceSection(bool isDarkMode) {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: isDarkMode ? AppColors.cardColorDark : Colors.white,
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
+            color: Colors.black.withOpacity(isDarkMode ? 0.2 : 0.05),
             blurRadius: 10,
             offset: const Offset(0, 2),
           ),
@@ -382,18 +369,25 @@ class _DashboardScreenState extends State<DashboardScreen>
             children: [
               Icon(Icons.today, color: AppColors.primary, size: 24),
               const SizedBox(width: 12),
-              const Text(
+              Text(
                 "Today's Attendance",
                 style: TextStyle(
                   fontSize: 18,
                   fontWeight: FontWeight.bold,
-                  color: AppColors.textDark,
+                  color:
+                      isDarkMode ? AppColors.textDarkDark : AppColors.textDark,
                 ),
               ),
               const Spacer(),
               Text(
                 DateFormat('EEEE, MMM d').format(DateTime.now()),
-                style: TextStyle(fontSize: 14, color: Colors.grey.shade600),
+                style: TextStyle(
+                  fontSize: 14,
+                  color:
+                      isDarkMode
+                          ? AppColors.textLightDark
+                          : AppColors.textLight,
+                ),
               ),
             ],
           ),
@@ -495,17 +489,23 @@ class _DashboardScreenState extends State<DashboardScreen>
     );
   }
 
-  Widget _buildStatisticsSection() {
+  Widget _buildStatisticsSection(bool isDarkMode) {
     if (isLoading) {
-      return const Center(child: CircularProgressIndicator());
+      return Center(
+        child: CircularProgressIndicator(color: AppColors.primary500),
+      );
     }
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text(
+        Text(
           'School Statistics',
-          style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+          style: TextStyle(
+            fontSize: 20,
+            fontWeight: FontWeight.bold,
+            color: isDarkMode ? AppColors.textDarkDark : AppColors.textDark,
+          ),
         ),
         const SizedBox(height: 16),
         GridView.count(
@@ -554,14 +554,16 @@ class _DashboardScreenState extends State<DashboardScreen>
     IconData icon,
     Color color,
   ) {
+    final isDarkMode = Theme.of(context).brightness == Brightness.dark;
+
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: isDarkMode ? AppColors.cardColorDark : Colors.white,
         borderRadius: BorderRadius.circular(12),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
+            color: Colors.black.withOpacity(isDarkMode ? 0.2 : 0.05),
             blurRadius: 8,
             offset: const Offset(0, 2),
           ),
@@ -590,7 +592,7 @@ class _DashboardScreenState extends State<DashboardScreen>
             title,
             style: TextStyle(
               fontSize: 12,
-              color: Colors.grey.shade600,
+              color: isDarkMode ? AppColors.textLightDark : AppColors.textLight,
               fontWeight: FontWeight.w500,
             ),
           ),
@@ -599,28 +601,27 @@ class _DashboardScreenState extends State<DashboardScreen>
     );
   }
 
-  Widget _buildQuickActionsSection() {
+  Widget _buildQuickActionsSection(bool isDarkMode) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text(
+        Text(
           'Quick Actions',
-          style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+          style: TextStyle(
+            fontSize: 20,
+            fontWeight: FontWeight.bold,
+            color: isDarkMode ? AppColors.textDarkDark : AppColors.textDark,
+          ),
         ),
         const SizedBox(height: 16),
         Row(
           children: [
             Expanded(
               child: _buildActionCard(
-                'Scan QR',
+                'Attendance',
                 Icons.qr_code_scanner,
                 AppColors.primary500,
-                () => Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => const AttendanceScanScreen(),
-                  ),
-                ),
+                () => ServiceOptionsDialog.showAttendanceOptions(context),
               ),
             ),
             const SizedBox(width: 12),
@@ -682,16 +683,18 @@ class _DashboardScreenState extends State<DashboardScreen>
     Color color,
     VoidCallback onTap,
   ) {
+    final isDarkMode = Theme.of(context).brightness == Brightness.dark;
+
     return GestureDetector(
       onTap: onTap,
       child: Container(
         padding: const EdgeInsets.all(20),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: isDarkMode ? AppColors.cardColorDark : Colors.white,
           borderRadius: BorderRadius.circular(12),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.05),
+              color: Colors.black.withOpacity(isDarkMode ? 0.2 : 0.05),
               blurRadius: 8,
               offset: const Offset(0, 2),
             ),
@@ -710,7 +713,11 @@ class _DashboardScreenState extends State<DashboardScreen>
             const SizedBox(height: 8),
             Text(
               title,
-              style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+                color: isDarkMode ? AppColors.textDarkDark : AppColors.textDark,
+              ),
               textAlign: TextAlign.center,
             ),
           ],
@@ -719,15 +726,15 @@ class _DashboardScreenState extends State<DashboardScreen>
     );
   }
 
-  Widget _buildSyncStatusSection() {
+  Widget _buildSyncStatusSection(bool isDarkMode) {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: isDarkMode ? AppColors.cardColorDark : Colors.white,
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
+            color: Colors.black.withOpacity(isDarkMode ? 0.2 : 0.05),
             blurRadius: 10,
             offset: const Offset(0, 2),
           ),
@@ -744,27 +751,34 @@ class _DashboardScreenState extends State<DashboardScreen>
                 size: 24,
               ),
               const SizedBox(width: 12),
-              const Text(
+              Text(
                 'Sync Status',
                 style: TextStyle(
                   fontSize: 18,
                   fontWeight: FontWeight.bold,
-                  color: AppColors.textDark,
+                  color:
+                      isDarkMode ? AppColors.textDarkDark : AppColors.textDark,
                 ),
               ),
               const Spacer(),
               if (isSyncing)
-                const SizedBox(
+                SizedBox(
                   width: 20,
                   height: 20,
-                  child: CircularProgressIndicator(strokeWidth: 2),
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: AppColors.primary500,
+                  ),
                 ),
             ],
           ),
           const SizedBox(height: 12),
           Text(
             syncStatus,
-            style: TextStyle(fontSize: 14, color: Colors.grey.shade600),
+            style: TextStyle(
+              fontSize: 14,
+              color: isDarkMode ? AppColors.textLightDark : AppColors.textLight,
+            ),
           ),
           const SizedBox(height: 16),
           SizedBox(
@@ -788,15 +802,15 @@ class _DashboardScreenState extends State<DashboardScreen>
     );
   }
 
-  Widget _buildConnectivityStatus() {
+  Widget _buildConnectivityStatus(bool isDarkMode) {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: isDarkMode ? AppColors.cardColorDark : Colors.white,
         borderRadius: BorderRadius.circular(12),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
+            color: Colors.black.withOpacity(isDarkMode ? 0.2 : 0.05),
             blurRadius: 10,
             offset: const Offset(0, 2),
           ),
@@ -827,7 +841,13 @@ class _DashboardScreenState extends State<DashboardScreen>
                 ),
                 Text(
                   _getConnectivityTypeText(),
-                  style: TextStyle(fontSize: 14, color: Colors.grey[600]),
+                  style: TextStyle(
+                    fontSize: 14,
+                    color:
+                        isDarkMode
+                            ? AppColors.textLightDark
+                            : AppColors.textLight,
+                  ),
                 ),
               ],
             ),
