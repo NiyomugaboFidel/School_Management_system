@@ -1,5 +1,4 @@
 import 'package:permission_handler/permission_handler.dart';
-import 'package:flutter/foundation.dart';
 
 Future<void> requestAllPermissions() async {
   try {

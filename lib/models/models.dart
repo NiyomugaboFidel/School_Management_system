@@ -6,8 +6,6 @@ export '../models/level.dart';
 export '../models/class.dart';
 export '../models/attendance.dart';
 export '../models/attendance_result.dart';
-export '../models/payment.dart';
-export '../models/discipline.dart';
 export '../models/statistics.dart';
 export '../models/sync_queue_item.dart';
 export '../models/sync_status.dart';

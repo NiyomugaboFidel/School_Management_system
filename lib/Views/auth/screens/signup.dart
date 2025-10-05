@@ -1,8 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:sqlite_crud_app/Components/button.dart';
-import 'package:sqlite_crud_app/Components/textfield.dart';
 import 'package:sqlite_crud_app/constants/app_colors.dart';
-import 'package:sqlite_crud_app/models/user.dart';
 import 'package:sqlite_crud_app/services/auth_services.dart';
 
 // ============================= CLASS SignupScreen =============================

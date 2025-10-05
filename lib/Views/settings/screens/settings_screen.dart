@@ -7,7 +7,6 @@ import 'package:sqlite_crud_app/utils/theme_provider.dart';
 import 'package:sqlite_crud_app/services/enhanced_sync_service.dart';
 import 'package:intl/intl.dart';
 import '../../../services/holiday_service.dart';
-import '../../../services/notification_service.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({Key? key}) : super(key: key);
