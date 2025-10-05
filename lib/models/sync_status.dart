@@ -157,3 +157,4 @@ class SyncStatus {
     return 'SyncStatus(state: $state, pending: $pendingCount, failed: $failedCount, online: $isOnline)';
   }
 }
+

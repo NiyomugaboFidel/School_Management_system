@@ -84,3 +84,4 @@ class SyncQueueItem {
     return 'SyncQueueItem(id: $id, table: $tableName, op: $operation, retry: $retryCount)';
   }
 }
+

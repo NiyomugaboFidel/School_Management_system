@@ -197,3 +197,4 @@ class SyncStatusBanner extends StatelessWidget {
     );
   }
 }
+

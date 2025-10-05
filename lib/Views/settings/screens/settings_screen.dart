@@ -155,10 +155,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
       id: DateTime.now().millisecondsSinceEpoch.toString(),
       name: _holidayNameController.text.trim(),
       date: _selectedHolidayDate,
-      description:
-          _holidayDescriptionController.text.trim().isEmpty
-              ? null
-              : _holidayDescriptionController.text.trim(),
+      description: _holidayDescriptionController.text.trim().isEmpty
+          ? null
+          : _holidayDescriptionController.text.trim(),
       isRecurring: _isRecurringHoliday,
     );
 
@@ -339,14 +338,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   subtitle: 'Sync data now',
                   icon: Icons.sync_alt,
                   onTap: _isLoading ? () {} : () => _performSync(),
-                  trailing:
-                      _isLoading
-                          ? const SizedBox(
-                            width: 20,
-                            height: 20,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                          : null,
+                  trailing: _isLoading
+                      ? const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : null,
                 ),
               ],
             ),

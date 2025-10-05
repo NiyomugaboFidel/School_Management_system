@@ -550,10 +550,9 @@ class DatabaseHelper {
     // Alternate gender for demo
     final gender = index % 2 == 0 ? 'Female' : 'Male';
     // Demo profile images by gender
-    final profileImage =
-        gender == 'Male'
-            ? 'https://cdn-icons-png.flaticon.com/512/4537/4537019.png'
-            : 'https://cdn-icons-png.flaticon.com/512/4730/4730811.png'; // You can use a different icon for female if desired
+    final profileImage = gender == 'Male'
+        ? 'https://cdn-icons-png.flaticon.com/512/4537/4537019.png'
+        : 'https://cdn-icons-png.flaticon.com/512/4730/4730811.png'; // You can use a different icon for female if desired
     // Demo addresses
     final addresses = [
       '123 Main St, Kigali',
@@ -1041,10 +1040,10 @@ class DatabaseHelper {
 
         return result > 0
             ? AttendanceResult.updated(
-              previousStatus: existingRecord.status.value,
-              newStatus: status,
-              time: now,
-            )
+                previousStatus: existingRecord.status.value,
+                newStatus: status,
+                time: now,
+              )
             : AttendanceResult.failure('Failed to update attendance');
       } else {
         // Insert new record
@@ -1119,208 +1118,208 @@ class DatabaseHelper {
     }
   }
 
-// REMOVED FOR ATTENDANCE-ONLY:   // ============================= PAYMENT METHODS =============================
-// REMOVED FOR ATTENDANCE-ONLY: 
-// REMOVED FOR ATTENDANCE-ONLY:   /// Record a payment
-// REMOVED FOR ATTENDANCE-ONLY:   Future<bool> recordPayment(
-// REMOVED FOR ATTENDANCE-ONLY:     int studentId,
-// REMOVED FOR ATTENDANCE-ONLY:     double amount,
-// REMOVED FOR ATTENDANCE-ONLY:     String paymentType,
-// REMOVED FOR ATTENDANCE-ONLY:     String paymentMethod, {
-// REMOVED FOR ATTENDANCE-ONLY:     String? receiptNumber,
-// REMOVED FOR ATTENDANCE-ONLY:     String? parentReason,
-// REMOVED FOR ATTENDANCE-ONLY:   }) async {
-// REMOVED FOR ATTENDANCE-ONLY:     try {
-// REMOVED FOR ATTENDANCE-ONLY:       final db = await database;
-// REMOVED FOR ATTENDANCE-ONLY:       final today = DateTime.now().toIso8601String().split('T')[0];
-// REMOVED FOR ATTENDANCE-ONLY:       final now = DateTime.now().toIso8601String();
-// REMOVED FOR ATTENDANCE-ONLY: 
-// REMOVED FOR ATTENDANCE-ONLY:       final result = await db.insert(_tablePayments, {
-// REMOVED FOR ATTENDANCE-ONLY:         'student_id': studentId,
-// REMOVED FOR ATTENDANCE-ONLY:         'amount': amount,
-// REMOVED FOR ATTENDANCE-ONLY:         'date_paid': today,
-// REMOVED FOR ATTENDANCE-ONLY:         'payment_type': paymentType,
-// REMOVED FOR ATTENDANCE-ONLY:         'payment_method': paymentMethod,
-// REMOVED FOR ATTENDANCE-ONLY:         'receipt_number': receiptNumber,
-// REMOVED FOR ATTENDANCE-ONLY:         'parent_reason': parentReason,
-// REMOVED FOR ATTENDANCE-ONLY:         'synced': 0,
-// REMOVED FOR ATTENDANCE-ONLY:         'created_at': now,
-// REMOVED FOR ATTENDANCE-ONLY:       });
-// REMOVED FOR ATTENDANCE-ONLY: 
-// REMOVED FOR ATTENDANCE-ONLY:       return result > 0;
-// REMOVED FOR ATTENDANCE-ONLY:     } catch (e) {
-// REMOVED FOR ATTENDANCE-ONLY:       print('Error recording payment: $e');
-// REMOVED FOR ATTENDANCE-ONLY:       return false;
-// REMOVED FOR ATTENDANCE-ONLY:     }
-// REMOVED FOR ATTENDANCE-ONLY:   }
-// REMOVED FOR ATTENDANCE-ONLY: 
-// REMOVED FOR ATTENDANCE-ONLY:   /// Get student payments
-// REMOVED FOR ATTENDANCE-ONLY:   Future<List<Payment>> getStudentPayments(int studentId) async {
-// REMOVED FOR ATTENDANCE-ONLY:     try {
-// REMOVED FOR ATTENDANCE-ONLY:       final db = await database;
-// REMOVED FOR ATTENDANCE-ONLY:       final result = await db.query(
-// REMOVED FOR ATTENDANCE-ONLY:         _tablePayments,
-// REMOVED FOR ATTENDANCE-ONLY:         where: 'student_id = ?',
-// REMOVED FOR ATTENDANCE-ONLY:         whereArgs: [studentId],
-// REMOVED FOR ATTENDANCE-ONLY:         orderBy: 'date_paid DESC',
-// REMOVED FOR ATTENDANCE-ONLY:       );
-// REMOVED FOR ATTENDANCE-ONLY:       return result.map((map) => Payment.fromMap(map)).toList();
-// REMOVED FOR ATTENDANCE-ONLY:     } catch (e) {
-// REMOVED FOR ATTENDANCE-ONLY:       print('Error getting student payments: $e');
-// REMOVED FOR ATTENDANCE-ONLY:       return [];
-// REMOVED FOR ATTENDANCE-ONLY:     }
-// REMOVED FOR ATTENDANCE-ONLY:   }
-// REMOVED FOR ATTENDANCE-ONLY: 
-// REMOVED FOR ATTENDANCE-ONLY:   /// Get recent payments
-// REMOVED FOR ATTENDANCE-ONLY:   Future<List<Payment>> getRecentPayments({int limit = 50}) async {
-// REMOVED FOR ATTENDANCE-ONLY:     try {
-// REMOVED FOR ATTENDANCE-ONLY:       final db = await database;
-// REMOVED FOR ATTENDANCE-ONLY:       final result = await db.rawQuery(
-// REMOVED FOR ATTENDANCE-ONLY:         '''
-// REMOVED FOR ATTENDANCE-ONLY:         SELECT p.*, s.full_name, s.reg_number, c.name as class_name
-// REMOVED FOR ATTENDANCE-ONLY:         FROM $_tablePayments p
-// REMOVED FOR ATTENDANCE-ONLY:         JOIN $_tableStudents s ON p.student_id = s.student_id
-// REMOVED FOR ATTENDANCE-ONLY:         JOIN $_tableClasses c ON s.class_id = c.class_id
-// REMOVED FOR ATTENDANCE-ONLY:         ORDER BY p.created_at DESC
-// REMOVED FOR ATTENDANCE-ONLY:         LIMIT ?
-// REMOVED FOR ATTENDANCE-ONLY:       ''',
-// REMOVED FOR ATTENDANCE-ONLY:         [limit],
-// REMOVED FOR ATTENDANCE-ONLY:       );
-// REMOVED FOR ATTENDANCE-ONLY: 
-// REMOVED FOR ATTENDANCE-ONLY:       return result.map((map) => Payment.fromMap(map)).toList();
-// REMOVED FOR ATTENDANCE-ONLY:     } catch (e) {
-// REMOVED FOR ATTENDANCE-ONLY:       print('Error getting recent payments: $e');
-// REMOVED FOR ATTENDANCE-ONLY:       return [];
-// REMOVED FOR ATTENDANCE-ONLY:     }
-// REMOVED FOR ATTENDANCE-ONLY:   }
-// REMOVED FOR ATTENDANCE-ONLY: 
-// REMOVED FOR ATTENDANCE-ONLY:   /// Get total payments for a student
-// REMOVED FOR ATTENDANCE-ONLY:   Future<double> getStudentTotalPayments(int studentId) async {
-// REMOVED FOR ATTENDANCE-ONLY:     try {
-// REMOVED FOR ATTENDANCE-ONLY:       final db = await database;
-// REMOVED FOR ATTENDANCE-ONLY:       final result = await db.rawQuery(
-// REMOVED FOR ATTENDANCE-ONLY:         '''
-// REMOVED FOR ATTENDANCE-ONLY:         SELECT SUM(amount) as total
-// REMOVED FOR ATTENDANCE-ONLY:         FROM $_tablePayments
-// REMOVED FOR ATTENDANCE-ONLY:         WHERE student_id = ?
-// REMOVED FOR ATTENDANCE-ONLY:       ''',
-// REMOVED FOR ATTENDANCE-ONLY:         [studentId],
-// REMOVED FOR ATTENDANCE-ONLY:       );
-// REMOVED FOR ATTENDANCE-ONLY: 
-// REMOVED FOR ATTENDANCE-ONLY:       if (result.isNotEmpty && result.first['total'] != null) {
-// REMOVED FOR ATTENDANCE-ONLY:         return (result.first['total'] as num).toDouble();
-// REMOVED FOR ATTENDANCE-ONLY:       }
-// REMOVED FOR ATTENDANCE-ONLY:       return 0.0;
-// REMOVED FOR ATTENDANCE-ONLY:     } catch (e) {
-// REMOVED FOR ATTENDANCE-ONLY:       print('Error getting student total payments: $e');
-// REMOVED FOR ATTENDANCE-ONLY:       return 0.0;
-// REMOVED FOR ATTENDANCE-ONLY:     }
-// REMOVED FOR ATTENDANCE-ONLY:   }
-// REMOVED FOR ATTENDANCE-ONLY: 
-// REMOVED FOR ATTENDANCE-ONLY:   // ============================= DISCIPLINE METHODS =============================
-// REMOVED FOR ATTENDANCE-ONLY: 
-// REMOVED FOR ATTENDANCE-ONLY:   /// Record a discipline case
-// REMOVED FOR ATTENDANCE-ONLY:   Future<bool> recordDiscipline({
-// REMOVED FOR ATTENDANCE-ONLY:     required int studentId,
-// REMOVED FOR ATTENDANCE-ONLY:     required String incidentDate,
-// REMOVED FOR ATTENDANCE-ONLY:     required int marksDeducted,
-// REMOVED FOR ATTENDANCE-ONLY:     required String reason,
-// REMOVED FOR ATTENDANCE-ONLY:     required String severity,
-// REMOVED FOR ATTENDANCE-ONLY:     required String recordedBy,
-// REMOVED FOR ATTENDANCE-ONLY:     String? actionTaken,
-// REMOVED FOR ATTENDANCE-ONLY:   }) async {
-// REMOVED FOR ATTENDANCE-ONLY:     try {
-// REMOVED FOR ATTENDANCE-ONLY:       final db = await database;
-// REMOVED FOR ATTENDANCE-ONLY:       final today = DateTime.now().toIso8601String().split('T')[0];
-// REMOVED FOR ATTENDANCE-ONLY:       final now = DateTime.now().toIso8601String();
-// REMOVED FOR ATTENDANCE-ONLY: 
-// REMOVED FOR ATTENDANCE-ONLY:       final result = await db.insert(_tableDiscipline, {
-// REMOVED FOR ATTENDANCE-ONLY:         'student_id': studentId,
-// REMOVED FOR ATTENDANCE-ONLY:         'date': today,
-// REMOVED FOR ATTENDANCE-ONLY:         'incident_date': incidentDate,
-// REMOVED FOR ATTENDANCE-ONLY:         'marks_deducted': marksDeducted,
-// REMOVED FOR ATTENDANCE-ONLY:         'reason': reason,
-// REMOVED FOR ATTENDANCE-ONLY:         'severity': severity,
-// REMOVED FOR ATTENDANCE-ONLY:         'action_taken': actionTaken,
-// REMOVED FOR ATTENDANCE-ONLY:         'recorded_by': recordedBy,
-// REMOVED FOR ATTENDANCE-ONLY:         'synced': 0,
-// REMOVED FOR ATTENDANCE-ONLY:         'created_at': now,
-// REMOVED FOR ATTENDANCE-ONLY:       });
-// REMOVED FOR ATTENDANCE-ONLY: 
-// REMOVED FOR ATTENDANCE-ONLY:       return result > 0;
-// REMOVED FOR ATTENDANCE-ONLY:     } catch (e) {
-// REMOVED FOR ATTENDANCE-ONLY:       print('Error recording discipline: $e');
-// REMOVED FOR ATTENDANCE-ONLY:       return false;
-// REMOVED FOR ATTENDANCE-ONLY:     }
-// REMOVED FOR ATTENDANCE-ONLY:   }
-// REMOVED FOR ATTENDANCE-ONLY: 
-// REMOVED FOR ATTENDANCE-ONLY:   /// Get student discipline records
-// REMOVED FOR ATTENDANCE-ONLY:   Future<List<DisciplineRecord>> getStudentDisciplineRecords(
-// REMOVED FOR ATTENDANCE-ONLY:     int studentId,
-// REMOVED FOR ATTENDANCE-ONLY:   ) async {
-// REMOVED FOR ATTENDANCE-ONLY:     try {
-// REMOVED FOR ATTENDANCE-ONLY:       final db = await database;
-// REMOVED FOR ATTENDANCE-ONLY:       final result = await db.query(
-// REMOVED FOR ATTENDANCE-ONLY:         _tableDiscipline,
-// REMOVED FOR ATTENDANCE-ONLY:         where: 'student_id = ?',
-// REMOVED FOR ATTENDANCE-ONLY:         whereArgs: [studentId],
-// REMOVED FOR ATTENDANCE-ONLY:         orderBy: 'incident_date DESC',
-// REMOVED FOR ATTENDANCE-ONLY:       );
-// REMOVED FOR ATTENDANCE-ONLY: 
-// REMOVED FOR ATTENDANCE-ONLY:       return result.map((map) => DisciplineRecord.fromMap(map)).toList();
-// REMOVED FOR ATTENDANCE-ONLY:     } catch (e) {
-// REMOVED FOR ATTENDANCE-ONLY:       print('Error getting student discipline records: $e');
-// REMOVED FOR ATTENDANCE-ONLY:       return [];
-// REMOVED FOR ATTENDANCE-ONLY:     }
-// REMOVED FOR ATTENDANCE-ONLY:   }
-// REMOVED FOR ATTENDANCE-ONLY: 
-// REMOVED FOR ATTENDANCE-ONLY:   /// Get recent discipline cases
-// REMOVED FOR ATTENDANCE-ONLY:   Future<List<DisciplineRecord>> getRecentDisciplineCases({
-// REMOVED FOR ATTENDANCE-ONLY:     int limit = 50,
-// REMOVED FOR ATTENDANCE-ONLY:   }) async {
-// REMOVED FOR ATTENDANCE-ONLY:     try {
-// REMOVED FOR ATTENDANCE-ONLY:       final db = await database;
-// REMOVED FOR ATTENDANCE-ONLY:       final result = await db.rawQuery(
-// REMOVED FOR ATTENDANCE-ONLY:         '''
-// REMOVED FOR ATTENDANCE-ONLY:         SELECT d.*, s.full_name, s.reg_number, c.name as class_name
-// REMOVED FOR ATTENDANCE-ONLY:         FROM $_tableDiscipline d
-// REMOVED FOR ATTENDANCE-ONLY:         JOIN $_tableStudents s ON d.student_id = s.student_id
-// REMOVED FOR ATTENDANCE-ONLY:         JOIN $_tableClasses c ON s.class_id = c.class_id
-// REMOVED FOR ATTENDANCE-ONLY:         ORDER BY d.created_at DESC
-// REMOVED FOR ATTENDANCE-ONLY:         LIMIT ?
-// REMOVED FOR ATTENDANCE-ONLY:       ''',
-// REMOVED FOR ATTENDANCE-ONLY:         [limit],
-// REMOVED FOR ATTENDANCE-ONLY:       );
-// REMOVED FOR ATTENDANCE-ONLY: 
-// REMOVED FOR ATTENDANCE-ONLY:       return result.map((map) => DisciplineRecord.fromMap(map)).toList();
-// REMOVED FOR ATTENDANCE-ONLY:     } catch (e) {
-// REMOVED FOR ATTENDANCE-ONLY:       print('Error getting recent discipline cases: $e');
-// REMOVED FOR ATTENDANCE-ONLY:       return [];
-// REMOVED FOR ATTENDANCE-ONLY:     }
-// REMOVED FOR ATTENDANCE-ONLY:   }
-// REMOVED FOR ATTENDANCE-ONLY: 
-// REMOVED FOR ATTENDANCE-ONLY:   /// Get total discipline marks deducted for a student
-// REMOVED FOR ATTENDANCE-ONLY:   Future<int> getStudentTotalDisciplineMarks(int studentId) async {
-// REMOVED FOR ATTENDANCE-ONLY:     try {
-// REMOVED FOR ATTENDANCE-ONLY:       final db = await database;
-// REMOVED FOR ATTENDANCE-ONLY:       final result = await db.rawQuery(
-// REMOVED FOR ATTENDANCE-ONLY:         '''
-// REMOVED FOR ATTENDANCE-ONLY:         SELECT SUM(marks_deducted) as total
-// REMOVED FOR ATTENDANCE-ONLY:         FROM $_tableDiscipline
-// REMOVED FOR ATTENDANCE-ONLY:         WHERE student_id = ?
-// REMOVED FOR ATTENDANCE-ONLY:       ''',
-// REMOVED FOR ATTENDANCE-ONLY:         [studentId],
-// REMOVED FOR ATTENDANCE-ONLY:       );
-// REMOVED FOR ATTENDANCE-ONLY: 
-// REMOVED FOR ATTENDANCE-ONLY:       if (result.isNotEmpty && result.first['total'] != null) {
-// REMOVED FOR ATTENDANCE-ONLY:         return (result.first['total'] as num).toInt();
-// REMOVED FOR ATTENDANCE-ONLY:       }
-// REMOVED FOR ATTENDANCE-ONLY:       return 0;
-// REMOVED FOR ATTENDANCE-ONLY:     } catch (e) {
-// REMOVED FOR ATTENDANCE-ONLY:       print('Error getting student total discipline marks: $e');
-// REMOVED FOR ATTENDANCE-ONLY:       return 0;
-// REMOVED FOR ATTENDANCE-ONLY:     }
-// REMOVED FOR ATTENDANCE-ONLY:   }
+  // REMOVED FOR ATTENDANCE-ONLY:   // ============================= PAYMENT METHODS =============================
+  // REMOVED FOR ATTENDANCE-ONLY:
+  // REMOVED FOR ATTENDANCE-ONLY:   /// Record a payment
+  // REMOVED FOR ATTENDANCE-ONLY:   Future<bool> recordPayment(
+  // REMOVED FOR ATTENDANCE-ONLY:     int studentId,
+  // REMOVED FOR ATTENDANCE-ONLY:     double amount,
+  // REMOVED FOR ATTENDANCE-ONLY:     String paymentType,
+  // REMOVED FOR ATTENDANCE-ONLY:     String paymentMethod, {
+  // REMOVED FOR ATTENDANCE-ONLY:     String? receiptNumber,
+  // REMOVED FOR ATTENDANCE-ONLY:     String? parentReason,
+  // REMOVED FOR ATTENDANCE-ONLY:   }) async {
+  // REMOVED FOR ATTENDANCE-ONLY:     try {
+  // REMOVED FOR ATTENDANCE-ONLY:       final db = await database;
+  // REMOVED FOR ATTENDANCE-ONLY:       final today = DateTime.now().toIso8601String().split('T')[0];
+  // REMOVED FOR ATTENDANCE-ONLY:       final now = DateTime.now().toIso8601String();
+  // REMOVED FOR ATTENDANCE-ONLY:
+  // REMOVED FOR ATTENDANCE-ONLY:       final result = await db.insert(_tablePayments, {
+  // REMOVED FOR ATTENDANCE-ONLY:         'student_id': studentId,
+  // REMOVED FOR ATTENDANCE-ONLY:         'amount': amount,
+  // REMOVED FOR ATTENDANCE-ONLY:         'date_paid': today,
+  // REMOVED FOR ATTENDANCE-ONLY:         'payment_type': paymentType,
+  // REMOVED FOR ATTENDANCE-ONLY:         'payment_method': paymentMethod,
+  // REMOVED FOR ATTENDANCE-ONLY:         'receipt_number': receiptNumber,
+  // REMOVED FOR ATTENDANCE-ONLY:         'parent_reason': parentReason,
+  // REMOVED FOR ATTENDANCE-ONLY:         'synced': 0,
+  // REMOVED FOR ATTENDANCE-ONLY:         'created_at': now,
+  // REMOVED FOR ATTENDANCE-ONLY:       });
+  // REMOVED FOR ATTENDANCE-ONLY:
+  // REMOVED FOR ATTENDANCE-ONLY:       return result > 0;
+  // REMOVED FOR ATTENDANCE-ONLY:     } catch (e) {
+  // REMOVED FOR ATTENDANCE-ONLY:       print('Error recording payment: $e');
+  // REMOVED FOR ATTENDANCE-ONLY:       return false;
+  // REMOVED FOR ATTENDANCE-ONLY:     }
+  // REMOVED FOR ATTENDANCE-ONLY:   }
+  // REMOVED FOR ATTENDANCE-ONLY:
+  // REMOVED FOR ATTENDANCE-ONLY:   /// Get student payments
+  // REMOVED FOR ATTENDANCE-ONLY:   Future<List<Payment>> getStudentPayments(int studentId) async {
+  // REMOVED FOR ATTENDANCE-ONLY:     try {
+  // REMOVED FOR ATTENDANCE-ONLY:       final db = await database;
+  // REMOVED FOR ATTENDANCE-ONLY:       final result = await db.query(
+  // REMOVED FOR ATTENDANCE-ONLY:         _tablePayments,
+  // REMOVED FOR ATTENDANCE-ONLY:         where: 'student_id = ?',
+  // REMOVED FOR ATTENDANCE-ONLY:         whereArgs: [studentId],
+  // REMOVED FOR ATTENDANCE-ONLY:         orderBy: 'date_paid DESC',
+  // REMOVED FOR ATTENDANCE-ONLY:       );
+  // REMOVED FOR ATTENDANCE-ONLY:       return result.map((map) => Payment.fromMap(map)).toList();
+  // REMOVED FOR ATTENDANCE-ONLY:     } catch (e) {
+  // REMOVED FOR ATTENDANCE-ONLY:       print('Error getting student payments: $e');
+  // REMOVED FOR ATTENDANCE-ONLY:       return [];
+  // REMOVED FOR ATTENDANCE-ONLY:     }
+  // REMOVED FOR ATTENDANCE-ONLY:   }
+  // REMOVED FOR ATTENDANCE-ONLY:
+  // REMOVED FOR ATTENDANCE-ONLY:   /// Get recent payments
+  // REMOVED FOR ATTENDANCE-ONLY:   Future<List<Payment>> getRecentPayments({int limit = 50}) async {
+  // REMOVED FOR ATTENDANCE-ONLY:     try {
+  // REMOVED FOR ATTENDANCE-ONLY:       final db = await database;
+  // REMOVED FOR ATTENDANCE-ONLY:       final result = await db.rawQuery(
+  // REMOVED FOR ATTENDANCE-ONLY:         '''
+  // REMOVED FOR ATTENDANCE-ONLY:         SELECT p.*, s.full_name, s.reg_number, c.name as class_name
+  // REMOVED FOR ATTENDANCE-ONLY:         FROM $_tablePayments p
+  // REMOVED FOR ATTENDANCE-ONLY:         JOIN $_tableStudents s ON p.student_id = s.student_id
+  // REMOVED FOR ATTENDANCE-ONLY:         JOIN $_tableClasses c ON s.class_id = c.class_id
+  // REMOVED FOR ATTENDANCE-ONLY:         ORDER BY p.created_at DESC
+  // REMOVED FOR ATTENDANCE-ONLY:         LIMIT ?
+  // REMOVED FOR ATTENDANCE-ONLY:       ''',
+  // REMOVED FOR ATTENDANCE-ONLY:         [limit],
+  // REMOVED FOR ATTENDANCE-ONLY:       );
+  // REMOVED FOR ATTENDANCE-ONLY:
+  // REMOVED FOR ATTENDANCE-ONLY:       return result.map((map) => Payment.fromMap(map)).toList();
+  // REMOVED FOR ATTENDANCE-ONLY:     } catch (e) {
+  // REMOVED FOR ATTENDANCE-ONLY:       print('Error getting recent payments: $e');
+  // REMOVED FOR ATTENDANCE-ONLY:       return [];
+  // REMOVED FOR ATTENDANCE-ONLY:     }
+  // REMOVED FOR ATTENDANCE-ONLY:   }
+  // REMOVED FOR ATTENDANCE-ONLY:
+  // REMOVED FOR ATTENDANCE-ONLY:   /// Get total payments for a student
+  // REMOVED FOR ATTENDANCE-ONLY:   Future<double> getStudentTotalPayments(int studentId) async {
+  // REMOVED FOR ATTENDANCE-ONLY:     try {
+  // REMOVED FOR ATTENDANCE-ONLY:       final db = await database;
+  // REMOVED FOR ATTENDANCE-ONLY:       final result = await db.rawQuery(
+  // REMOVED FOR ATTENDANCE-ONLY:         '''
+  // REMOVED FOR ATTENDANCE-ONLY:         SELECT SUM(amount) as total
+  // REMOVED FOR ATTENDANCE-ONLY:         FROM $_tablePayments
+  // REMOVED FOR ATTENDANCE-ONLY:         WHERE student_id = ?
+  // REMOVED FOR ATTENDANCE-ONLY:       ''',
+  // REMOVED FOR ATTENDANCE-ONLY:         [studentId],
+  // REMOVED FOR ATTENDANCE-ONLY:       );
+  // REMOVED FOR ATTENDANCE-ONLY:
+  // REMOVED FOR ATTENDANCE-ONLY:       if (result.isNotEmpty && result.first['total'] != null) {
+  // REMOVED FOR ATTENDANCE-ONLY:         return (result.first['total'] as num).toDouble();
+  // REMOVED FOR ATTENDANCE-ONLY:       }
+  // REMOVED FOR ATTENDANCE-ONLY:       return 0.0;
+  // REMOVED FOR ATTENDANCE-ONLY:     } catch (e) {
+  // REMOVED FOR ATTENDANCE-ONLY:       print('Error getting student total payments: $e');
+  // REMOVED FOR ATTENDANCE-ONLY:       return 0.0;
+  // REMOVED FOR ATTENDANCE-ONLY:     }
+  // REMOVED FOR ATTENDANCE-ONLY:   }
+  // REMOVED FOR ATTENDANCE-ONLY:
+  // REMOVED FOR ATTENDANCE-ONLY:   // ============================= DISCIPLINE METHODS =============================
+  // REMOVED FOR ATTENDANCE-ONLY:
+  // REMOVED FOR ATTENDANCE-ONLY:   /// Record a discipline case
+  // REMOVED FOR ATTENDANCE-ONLY:   Future<bool> recordDiscipline({
+  // REMOVED FOR ATTENDANCE-ONLY:     required int studentId,
+  // REMOVED FOR ATTENDANCE-ONLY:     required String incidentDate,
+  // REMOVED FOR ATTENDANCE-ONLY:     required int marksDeducted,
+  // REMOVED FOR ATTENDANCE-ONLY:     required String reason,
+  // REMOVED FOR ATTENDANCE-ONLY:     required String severity,
+  // REMOVED FOR ATTENDANCE-ONLY:     required String recordedBy,
+  // REMOVED FOR ATTENDANCE-ONLY:     String? actionTaken,
+  // REMOVED FOR ATTENDANCE-ONLY:   }) async {
+  // REMOVED FOR ATTENDANCE-ONLY:     try {
+  // REMOVED FOR ATTENDANCE-ONLY:       final db = await database;
+  // REMOVED FOR ATTENDANCE-ONLY:       final today = DateTime.now().toIso8601String().split('T')[0];
+  // REMOVED FOR ATTENDANCE-ONLY:       final now = DateTime.now().toIso8601String();
+  // REMOVED FOR ATTENDANCE-ONLY:
+  // REMOVED FOR ATTENDANCE-ONLY:       final result = await db.insert(_tableDiscipline, {
+  // REMOVED FOR ATTENDANCE-ONLY:         'student_id': studentId,
+  // REMOVED FOR ATTENDANCE-ONLY:         'date': today,
+  // REMOVED FOR ATTENDANCE-ONLY:         'incident_date': incidentDate,
+  // REMOVED FOR ATTENDANCE-ONLY:         'marks_deducted': marksDeducted,
+  // REMOVED FOR ATTENDANCE-ONLY:         'reason': reason,
+  // REMOVED FOR ATTENDANCE-ONLY:         'severity': severity,
+  // REMOVED FOR ATTENDANCE-ONLY:         'action_taken': actionTaken,
+  // REMOVED FOR ATTENDANCE-ONLY:         'recorded_by': recordedBy,
+  // REMOVED FOR ATTENDANCE-ONLY:         'synced': 0,
+  // REMOVED FOR ATTENDANCE-ONLY:         'created_at': now,
+  // REMOVED FOR ATTENDANCE-ONLY:       });
+  // REMOVED FOR ATTENDANCE-ONLY:
+  // REMOVED FOR ATTENDANCE-ONLY:       return result > 0;
+  // REMOVED FOR ATTENDANCE-ONLY:     } catch (e) {
+  // REMOVED FOR ATTENDANCE-ONLY:       print('Error recording discipline: $e');
+  // REMOVED FOR ATTENDANCE-ONLY:       return false;
+  // REMOVED FOR ATTENDANCE-ONLY:     }
+  // REMOVED FOR ATTENDANCE-ONLY:   }
+  // REMOVED FOR ATTENDANCE-ONLY:
+  // REMOVED FOR ATTENDANCE-ONLY:   /// Get student discipline records
+  // REMOVED FOR ATTENDANCE-ONLY:   Future<List<DisciplineRecord>> getStudentDisciplineRecords(
+  // REMOVED FOR ATTENDANCE-ONLY:     int studentId,
+  // REMOVED FOR ATTENDANCE-ONLY:   ) async {
+  // REMOVED FOR ATTENDANCE-ONLY:     try {
+  // REMOVED FOR ATTENDANCE-ONLY:       final db = await database;
+  // REMOVED FOR ATTENDANCE-ONLY:       final result = await db.query(
+  // REMOVED FOR ATTENDANCE-ONLY:         _tableDiscipline,
+  // REMOVED FOR ATTENDANCE-ONLY:         where: 'student_id = ?',
+  // REMOVED FOR ATTENDANCE-ONLY:         whereArgs: [studentId],
+  // REMOVED FOR ATTENDANCE-ONLY:         orderBy: 'incident_date DESC',
+  // REMOVED FOR ATTENDANCE-ONLY:       );
+  // REMOVED FOR ATTENDANCE-ONLY:
+  // REMOVED FOR ATTENDANCE-ONLY:       return result.map((map) => DisciplineRecord.fromMap(map)).toList();
+  // REMOVED FOR ATTENDANCE-ONLY:     } catch (e) {
+  // REMOVED FOR ATTENDANCE-ONLY:       print('Error getting student discipline records: $e');
+  // REMOVED FOR ATTENDANCE-ONLY:       return [];
+  // REMOVED FOR ATTENDANCE-ONLY:     }
+  // REMOVED FOR ATTENDANCE-ONLY:   }
+  // REMOVED FOR ATTENDANCE-ONLY:
+  // REMOVED FOR ATTENDANCE-ONLY:   /// Get recent discipline cases
+  // REMOVED FOR ATTENDANCE-ONLY:   Future<List<DisciplineRecord>> getRecentDisciplineCases({
+  // REMOVED FOR ATTENDANCE-ONLY:     int limit = 50,
+  // REMOVED FOR ATTENDANCE-ONLY:   }) async {
+  // REMOVED FOR ATTENDANCE-ONLY:     try {
+  // REMOVED FOR ATTENDANCE-ONLY:       final db = await database;
+  // REMOVED FOR ATTENDANCE-ONLY:       final result = await db.rawQuery(
+  // REMOVED FOR ATTENDANCE-ONLY:         '''
+  // REMOVED FOR ATTENDANCE-ONLY:         SELECT d.*, s.full_name, s.reg_number, c.name as class_name
+  // REMOVED FOR ATTENDANCE-ONLY:         FROM $_tableDiscipline d
+  // REMOVED FOR ATTENDANCE-ONLY:         JOIN $_tableStudents s ON d.student_id = s.student_id
+  // REMOVED FOR ATTENDANCE-ONLY:         JOIN $_tableClasses c ON s.class_id = c.class_id
+  // REMOVED FOR ATTENDANCE-ONLY:         ORDER BY d.created_at DESC
+  // REMOVED FOR ATTENDANCE-ONLY:         LIMIT ?
+  // REMOVED FOR ATTENDANCE-ONLY:       ''',
+  // REMOVED FOR ATTENDANCE-ONLY:         [limit],
+  // REMOVED FOR ATTENDANCE-ONLY:       );
+  // REMOVED FOR ATTENDANCE-ONLY:
+  // REMOVED FOR ATTENDANCE-ONLY:       return result.map((map) => DisciplineRecord.fromMap(map)).toList();
+  // REMOVED FOR ATTENDANCE-ONLY:     } catch (e) {
+  // REMOVED FOR ATTENDANCE-ONLY:       print('Error getting recent discipline cases: $e');
+  // REMOVED FOR ATTENDANCE-ONLY:       return [];
+  // REMOVED FOR ATTENDANCE-ONLY:     }
+  // REMOVED FOR ATTENDANCE-ONLY:   }
+  // REMOVED FOR ATTENDANCE-ONLY:
+  // REMOVED FOR ATTENDANCE-ONLY:   /// Get total discipline marks deducted for a student
+  // REMOVED FOR ATTENDANCE-ONLY:   Future<int> getStudentTotalDisciplineMarks(int studentId) async {
+  // REMOVED FOR ATTENDANCE-ONLY:     try {
+  // REMOVED FOR ATTENDANCE-ONLY:       final db = await database;
+  // REMOVED FOR ATTENDANCE-ONLY:       final result = await db.rawQuery(
+  // REMOVED FOR ATTENDANCE-ONLY:         '''
+  // REMOVED FOR ATTENDANCE-ONLY:         SELECT SUM(marks_deducted) as total
+  // REMOVED FOR ATTENDANCE-ONLY:         FROM $_tableDiscipline
+  // REMOVED FOR ATTENDANCE-ONLY:         WHERE student_id = ?
+  // REMOVED FOR ATTENDANCE-ONLY:       ''',
+  // REMOVED FOR ATTENDANCE-ONLY:         [studentId],
+  // REMOVED FOR ATTENDANCE-ONLY:       );
+  // REMOVED FOR ATTENDANCE-ONLY:
+  // REMOVED FOR ATTENDANCE-ONLY:       if (result.isNotEmpty && result.first['total'] != null) {
+  // REMOVED FOR ATTENDANCE-ONLY:         return (result.first['total'] as num).toInt();
+  // REMOVED FOR ATTENDANCE-ONLY:       }
+  // REMOVED FOR ATTENDANCE-ONLY:       return 0;
+  // REMOVED FOR ATTENDANCE-ONLY:     } catch (e) {
+  // REMOVED FOR ATTENDANCE-ONLY:       print('Error getting student total discipline marks: $e');
+  // REMOVED FOR ATTENDANCE-ONLY:       return 0;
+  // REMOVED FOR ATTENDANCE-ONLY:     }
+  // REMOVED FOR ATTENDANCE-ONLY:   }
 
   // ============================= LEVEL AND CLASS METHODS =============================
 
@@ -1447,13 +1446,14 @@ class DatabaseHelper {
         final absentCount = (attendanceData['absent_count'] as num).toInt();
         final lateCount = (attendanceData['late_count'] as num).toInt();
         final excusedCount = (attendanceData['excused_count'] as num).toInt();
-        final disciplineCases =
-            (disciplineData['discipline_cases'] as num).toInt();
+        final disciplineCases = (disciplineData['discipline_cases'] as num)
+            .toInt();
         final totalMarksDeducted =
             (disciplineData['total_marks_deducted'] as num?)?.toInt() ?? 0;
 
-        final attendancePercentage =
-            totalDays > 0 ? (presentCount / totalDays) * 100 : 0.0;
+        final attendancePercentage = totalDays > 0
+            ? (presentCount / totalDays) * 100
+            : 0.0;
         final behaviorRating = _calculateBehaviorRating(
           disciplineCases,
           totalMarksDeducted,
@@ -1735,79 +1735,79 @@ class DatabaseHelper {
     }
   }
 
-// REMOVED FOR ATTENDANCE-ONLY:   /// Get unsynced payments
-// REMOVED FOR ATTENDANCE-ONLY:   Future<List<Payment>> getUnsyncedPayments() async {
-// REMOVED FOR ATTENDANCE-ONLY:     try {
-// REMOVED FOR ATTENDANCE-ONLY:       final db = await database;
-// REMOVED FOR ATTENDANCE-ONLY:       final result = await db.query(
-// REMOVED FOR ATTENDANCE-ONLY:         _tablePayments,
-// REMOVED FOR ATTENDANCE-ONLY:         where: 'synced = 0',
-// REMOVED FOR ATTENDANCE-ONLY:         orderBy: 'date_paid DESC',
-// REMOVED FOR ATTENDANCE-ONLY:       );
-// REMOVED FOR ATTENDANCE-ONLY: 
-// REMOVED FOR ATTENDANCE-ONLY:       return result.map((map) => Payment.fromMap(map)).toList();
-// REMOVED FOR ATTENDANCE-ONLY:     } catch (e) {
-// REMOVED FOR ATTENDANCE-ONLY:       print('Error getting unsynced payments: $e');
-// REMOVED FOR ATTENDANCE-ONLY:       return [];
-// REMOVED FOR ATTENDANCE-ONLY:     }
-// REMOVED FOR ATTENDANCE-ONLY:   }
-// REMOVED FOR ATTENDANCE-ONLY: 
-// REMOVED FOR ATTENDANCE-ONLY:   /// Update payment sync status
-// REMOVED FOR ATTENDANCE-ONLY:   Future<bool> updatePaymentSyncStatus(int id, bool synced) async {
-// REMOVED FOR ATTENDANCE-ONLY:     try {
-// REMOVED FOR ATTENDANCE-ONLY:       final db = await database;
-// REMOVED FOR ATTENDANCE-ONLY:       final result = await db.update(
-// REMOVED FOR ATTENDANCE-ONLY:         _tablePayments,
-// REMOVED FOR ATTENDANCE-ONLY:         {
-// REMOVED FOR ATTENDANCE-ONLY:           'synced': synced ? 1 : 0,
-// REMOVED FOR ATTENDANCE-ONLY:           'updated_at': DateTime.now().toIso8601String(),
-// REMOVED FOR ATTENDANCE-ONLY:         },
-// REMOVED FOR ATTENDANCE-ONLY:         where: 'id = ?',
-// REMOVED FOR ATTENDANCE-ONLY:         whereArgs: [id],
-// REMOVED FOR ATTENDANCE-ONLY:       );
-// REMOVED FOR ATTENDANCE-ONLY:       return result > 0;
-// REMOVED FOR ATTENDANCE-ONLY:     } catch (e) {
-// REMOVED FOR ATTENDANCE-ONLY:       print('Error updating payment sync status: $e');
-// REMOVED FOR ATTENDANCE-ONLY:       return false;
-// REMOVED FOR ATTENDANCE-ONLY:     }
-// REMOVED FOR ATTENDANCE-ONLY:   }
-// REMOVED FOR ATTENDANCE-ONLY: 
-// REMOVED FOR ATTENDANCE-ONLY:   /// Get unsynced discipline records
-// REMOVED FOR ATTENDANCE-ONLY:   Future<List<DisciplineRecord>> getUnsyncedDiscipline() async {
-// REMOVED FOR ATTENDANCE-ONLY:     try {
-// REMOVED FOR ATTENDANCE-ONLY:       final db = await database;
-// REMOVED FOR ATTENDANCE-ONLY:       final result = await db.query(
-// REMOVED FOR ATTENDANCE-ONLY:         _tableDiscipline,
-// REMOVED FOR ATTENDANCE-ONLY:         where: 'synced = 0',
-// REMOVED FOR ATTENDANCE-ONLY:         orderBy: 'incident_date DESC',
-// REMOVED FOR ATTENDANCE-ONLY:       );
-// REMOVED FOR ATTENDANCE-ONLY: 
-// REMOVED FOR ATTENDANCE-ONLY:       return result.map((map) => DisciplineRecord.fromMap(map)).toList();
-// REMOVED FOR ATTENDANCE-ONLY:     } catch (e) {
-// REMOVED FOR ATTENDANCE-ONLY:       print('Error getting unsynced discipline: $e');
-// REMOVED FOR ATTENDANCE-ONLY:       return [];
-// REMOVED FOR ATTENDANCE-ONLY:     }
-// REMOVED FOR ATTENDANCE-ONLY:   }
-// REMOVED FOR ATTENDANCE-ONLY: 
-// REMOVED FOR ATTENDANCE-ONLY:   /// Update discipline sync status
-// REMOVED FOR ATTENDANCE-ONLY:   Future<bool> updateDisciplineSyncStatus(int id, bool synced) async {
-// REMOVED FOR ATTENDANCE-ONLY:     try {
-// REMOVED FOR ATTENDANCE-ONLY:       final db = await database;
-// REMOVED FOR ATTENDANCE-ONLY:       final result = await db.update(
-// REMOVED FOR ATTENDANCE-ONLY:         _tableDiscipline,
-// REMOVED FOR ATTENDANCE-ONLY:         {
-// REMOVED FOR ATTENDANCE-ONLY:           'synced': synced ? 1 : 0,
-// REMOVED FOR ATTENDANCE-ONLY:           'updated_at': DateTime.now().toIso8601String(),
-// REMOVED FOR ATTENDANCE-ONLY:         },
-// REMOVED FOR ATTENDANCE-ONLY:         where: 'id = ?',
-// REMOVED FOR ATTENDANCE-ONLY:         whereArgs: [id],
-// REMOVED FOR ATTENDANCE-ONLY:       );
-// REMOVED FOR ATTENDANCE-ONLY:       return result > 0;
-// REMOVED FOR ATTENDANCE-ONLY:     } catch (e) {
-// REMOVED FOR ATTENDANCE-ONLY:       print('Error updating discipline sync status: $e');
-// REMOVED FOR ATTENDANCE-ONLY:       return false;
-// REMOVED FOR ATTENDANCE-ONLY:     }
-// REMOVED FOR ATTENDANCE-ONLY:   }
+  // REMOVED FOR ATTENDANCE-ONLY:   /// Get unsynced payments
+  // REMOVED FOR ATTENDANCE-ONLY:   Future<List<Payment>> getUnsyncedPayments() async {
+  // REMOVED FOR ATTENDANCE-ONLY:     try {
+  // REMOVED FOR ATTENDANCE-ONLY:       final db = await database;
+  // REMOVED FOR ATTENDANCE-ONLY:       final result = await db.query(
+  // REMOVED FOR ATTENDANCE-ONLY:         _tablePayments,
+  // REMOVED FOR ATTENDANCE-ONLY:         where: 'synced = 0',
+  // REMOVED FOR ATTENDANCE-ONLY:         orderBy: 'date_paid DESC',
+  // REMOVED FOR ATTENDANCE-ONLY:       );
+  // REMOVED FOR ATTENDANCE-ONLY:
+  // REMOVED FOR ATTENDANCE-ONLY:       return result.map((map) => Payment.fromMap(map)).toList();
+  // REMOVED FOR ATTENDANCE-ONLY:     } catch (e) {
+  // REMOVED FOR ATTENDANCE-ONLY:       print('Error getting unsynced payments: $e');
+  // REMOVED FOR ATTENDANCE-ONLY:       return [];
+  // REMOVED FOR ATTENDANCE-ONLY:     }
+  // REMOVED FOR ATTENDANCE-ONLY:   }
+  // REMOVED FOR ATTENDANCE-ONLY:
+  // REMOVED FOR ATTENDANCE-ONLY:   /// Update payment sync status
+  // REMOVED FOR ATTENDANCE-ONLY:   Future<bool> updatePaymentSyncStatus(int id, bool synced) async {
+  // REMOVED FOR ATTENDANCE-ONLY:     try {
+  // REMOVED FOR ATTENDANCE-ONLY:       final db = await database;
+  // REMOVED FOR ATTENDANCE-ONLY:       final result = await db.update(
+  // REMOVED FOR ATTENDANCE-ONLY:         _tablePayments,
+  // REMOVED FOR ATTENDANCE-ONLY:         {
+  // REMOVED FOR ATTENDANCE-ONLY:           'synced': synced ? 1 : 0,
+  // REMOVED FOR ATTENDANCE-ONLY:           'updated_at': DateTime.now().toIso8601String(),
+  // REMOVED FOR ATTENDANCE-ONLY:         },
+  // REMOVED FOR ATTENDANCE-ONLY:         where: 'id = ?',
+  // REMOVED FOR ATTENDANCE-ONLY:         whereArgs: [id],
+  // REMOVED FOR ATTENDANCE-ONLY:       );
+  // REMOVED FOR ATTENDANCE-ONLY:       return result > 0;
+  // REMOVED FOR ATTENDANCE-ONLY:     } catch (e) {
+  // REMOVED FOR ATTENDANCE-ONLY:       print('Error updating payment sync status: $e');
+  // REMOVED FOR ATTENDANCE-ONLY:       return false;
+  // REMOVED FOR ATTENDANCE-ONLY:     }
+  // REMOVED FOR ATTENDANCE-ONLY:   }
+  // REMOVED FOR ATTENDANCE-ONLY:
+  // REMOVED FOR ATTENDANCE-ONLY:   /// Get unsynced discipline records
+  // REMOVED FOR ATTENDANCE-ONLY:   Future<List<DisciplineRecord>> getUnsyncedDiscipline() async {
+  // REMOVED FOR ATTENDANCE-ONLY:     try {
+  // REMOVED FOR ATTENDANCE-ONLY:       final db = await database;
+  // REMOVED FOR ATTENDANCE-ONLY:       final result = await db.query(
+  // REMOVED FOR ATTENDANCE-ONLY:         _tableDiscipline,
+  // REMOVED FOR ATTENDANCE-ONLY:         where: 'synced = 0',
+  // REMOVED FOR ATTENDANCE-ONLY:         orderBy: 'incident_date DESC',
+  // REMOVED FOR ATTENDANCE-ONLY:       );
+  // REMOVED FOR ATTENDANCE-ONLY:
+  // REMOVED FOR ATTENDANCE-ONLY:       return result.map((map) => DisciplineRecord.fromMap(map)).toList();
+  // REMOVED FOR ATTENDANCE-ONLY:     } catch (e) {
+  // REMOVED FOR ATTENDANCE-ONLY:       print('Error getting unsynced discipline: $e');
+  // REMOVED FOR ATTENDANCE-ONLY:       return [];
+  // REMOVED FOR ATTENDANCE-ONLY:     }
+  // REMOVED FOR ATTENDANCE-ONLY:   }
+  // REMOVED FOR ATTENDANCE-ONLY:
+  // REMOVED FOR ATTENDANCE-ONLY:   /// Update discipline sync status
+  // REMOVED FOR ATTENDANCE-ONLY:   Future<bool> updateDisciplineSyncStatus(int id, bool synced) async {
+  // REMOVED FOR ATTENDANCE-ONLY:     try {
+  // REMOVED FOR ATTENDANCE-ONLY:       final db = await database;
+  // REMOVED FOR ATTENDANCE-ONLY:       final result = await db.update(
+  // REMOVED FOR ATTENDANCE-ONLY:         _tableDiscipline,
+  // REMOVED FOR ATTENDANCE-ONLY:         {
+  // REMOVED FOR ATTENDANCE-ONLY:           'synced': synced ? 1 : 0,
+  // REMOVED FOR ATTENDANCE-ONLY:           'updated_at': DateTime.now().toIso8601String(),
+  // REMOVED FOR ATTENDANCE-ONLY:         },
+  // REMOVED FOR ATTENDANCE-ONLY:         where: 'id = ?',
+  // REMOVED FOR ATTENDANCE-ONLY:         whereArgs: [id],
+  // REMOVED FOR ATTENDANCE-ONLY:       );
+  // REMOVED FOR ATTENDANCE-ONLY:       return result > 0;
+  // REMOVED FOR ATTENDANCE-ONLY:     } catch (e) {
+  // REMOVED FOR ATTENDANCE-ONLY:       print('Error updating discipline sync status: $e');
+  // REMOVED FOR ATTENDANCE-ONLY:       return false;
+  // REMOVED FOR ATTENDANCE-ONLY:     }
+  // REMOVED FOR ATTENDANCE-ONLY:   }
 
   /// Update student sync status
   Future<bool> updateStudentSyncStatus(int studentId, bool synced) async {
